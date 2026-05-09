@@ -1,0 +1,347 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== USERS ====================
+
+model User {
+  id        String   @id @default(cuid())
+  fullName  String
+  role      Role     @default(agent)
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auth
+  username String @unique
+  password String
+
+  generalReports             DailyGeneralReport[]   @relation("GeneralReportReporter")
+  readGeneralReports         DailyGeneralReport[]   @relation("GeneralReportReader")
+  colisNonVus                ColisNonVu[]
+  readColisNonVus            ColisNonVu[]           @relation("ColisNonVuReader")
+  colisHorsBordereaux        ColisHorsBordereau[]
+  readColisHorsBordereaux    ColisHorsBordereau[]   @relation("ColisHorsBordereauReader")
+  erreursDestination         ErreurDestination[]
+  readErreursDestination     ErreurDestination[]    @relation("ErreurDestinationReader")
+  colisRetardes              ColisRetarde[]
+  readColisRetardes          ColisRetarde[]         @relation("ColisRetardeReader")
+  colisNonIdentifies         ColisNonIdentifie[]
+  readColisNonIdentifies     ColisNonIdentifie[]    @relation("ColisNonIdentifieReader")
+  colisTransferes            ColisTransfere[]
+  readColisTransferes        ColisTransfere[]       @relation("ColisTransfereReader")
+  classementColis            ClassementColi[]
+  readClassementColis        ClassementColi[]       @relation("ClassementColiReader")
+  convoyeursAbsents          ConvoyeurAbsent[]
+  readConvoyeursAbsents      ConvoyeurAbsent[]      @relation("ConvoyeurAbsentReader")
+  bordereauxNonConformes     BordereauNonConforme[]
+  readBordereauxNonConformes BordereauNonConforme[] @relation("BordereauNonConformeReader")
+  vehiculesEmbarques         VehiculeEmbarque[]
+  readVehiculesEmbarques     VehiculeEmbarque[]     @relation("VehiculeEmbarqueReader")
+  signatureLogs              SignatureLog[]
+  evaluationsReceived        PersonnelEvaluation[]  @relation("EvaluatedUser")
+  evaluationsGiven           PersonnelEvaluation[]  @relation("EvaluatingLeader")
+  criteriaCreated            Criterion[]            @relation("CriteriaCreator")
+
+  @@map("users")
+}
+
+enum Role {
+  admin
+  leader_envoi
+  leader_piste
+  leader_retrait
+  agent
+  convoyeur
+}
+
+// ==================== DAILY GENERAL REPORT ====================
+
+model DailyGeneralReport {
+  id                  String    @id @default(cuid())
+  reportDate          DateTime  @db.Date
+  service             Service
+  isRead              Boolean   @default(false)
+  readAt              DateTime?
+  personnelPresent    String?   @db.Text
+  personnelAbsent     String?   @db.Text
+  ambianceGenerale    String?   @db.Text
+  problemesRencontres String?   @db.Text
+  etatGeneralService  String?   @db.Text
+  passationService    String?   @db.Text
+  observationGeneral  String?   @db.Text
+  createdAt           DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation("GeneralReportReporter", fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("GeneralReportReader", fields: [readById], references: [id])
+
+  @@unique([reportDate, service])
+  @@map("daily_general_reports")
+}
+
+enum Service {
+  envoi
+  piste
+  retrait
+}
+
+// ==================== INCIDENT REPORTS ====================
+
+model ColisNonVu {
+  id                String    @id @default(cuid())
+  reportDate        DateTime  @db.Date
+  service           Service
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  immatriculation   String?
+  agenceDepart      String?
+  description       String?   @db.Text
+  destinataire      String?
+  destinatairePhone String?
+  actionEnCours     String?   @db.Text
+  createdAt         DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ColisNonVuReader", fields: [readById], references: [id])
+
+  @@map("colis_non_vus")
+}
+
+model ColisHorsBordereau {
+  id                String    @id @default(cuid())
+  reportDate        DateTime  @db.Date
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  agenceDepart      String?
+  description       String?   @db.Text
+  destinataire      String?
+  destinatairePhone String?
+  actionMenee       String?   @db.Text
+  createdAt         DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ColisHorsBordereauReader", fields: [readById], references: [id])
+
+  @@map("colis_hors_bordereaux")
+}
+
+model ErreurDestination {
+  id                 String    @id @default(cuid())
+  reportDate         DateTime  @db.Date
+  isRead             Boolean   @default(false)
+  readAt             DateTime?
+  immatriculation    String?
+  destination        String?
+  description        String?   @db.Text
+  destinationPrevue  String?
+  destinationErronee String?
+  destinataire       String?
+  destinatairePhone  String?
+  equipeFacturation  String?
+  createdAt          DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ErreurDestinationReader", fields: [readById], references: [id])
+
+  @@map("erreurs_destination")
+}
+
+model ColisRetarde {
+  id            String    @id @default(cuid())
+  reportDate    DateTime  @db.Date
+  isRead        Boolean   @default(false)
+  readAt        DateTime?
+  codeColis     String?
+  description   String?   @db.Text
+  destinataire  String?
+  motifRetard   String?   @db.Text
+  actionEnCours String?   @db.Text
+  createdAt     DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ColisRetardeReader", fields: [readById], references: [id])
+
+  @@map("colis_retardes")
+}
+
+model ColisNonIdentifie {
+  id                     String    @id @default(cuid())
+  reportDate             DateTime  @db.Date
+  isRead                 Boolean   @default(false)
+  readAt                 DateTime?
+  descriptionColis       String?   @db.Text
+  motifNonIdentification String?   @db.Text
+  actionMenee            String?   @db.Text
+  createdAt              DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ColisNonIdentifieReader", fields: [readById], references: [id])
+
+  @@map("colis_non_identifies")
+}
+
+model ColisTransfere {
+  id              String    @id @default(cuid())
+  reportDate      DateTime  @db.Date
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  destination     String?
+  numeroBordereau String?
+  nombreColis     Int?
+  chauffeur       String?
+  statut          String?
+  createdAt       DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ColisTransfereReader", fields: [readById], references: [id])
+
+  @@map("colis_transferes")
+}
+
+model ClassementColi {
+  id              String    @id @default(cuid())
+  reportDate      DateTime  @db.Date
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  typeColis       String?
+  emplacement     String?
+  deplaceAvant15h Boolean   @default(false)
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ClassementColiReader", fields: [readById], references: [id])
+
+  @@map("classement_colis")
+}
+
+model ConvoyeurAbsent {
+  id               String    @id @default(cuid())
+  reportDate       DateTime  @db.Date
+  isRead           Boolean   @default(false)
+  readAt           DateTime?
+  nom              String?
+  numero           String?
+  vehicule         String?
+  agenceProvenance String?
+  createdAt        DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("ConvoyeurAbsentReader", fields: [readById], references: [id])
+
+  @@map("convoyeurs_absents")
+}
+
+model BordereauNonConforme {
+  id                 String    @id @default(cuid())
+  reportDate         DateTime  @db.Date
+  isRead             Boolean   @default(false)
+  readAt             DateTime?
+  numeroBordereau    String?
+  motifNonConformite String?   @db.Text
+  actionMenee        String?   @db.Text
+  createdAt          DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("BordereauNonConformeReader", fields: [readById], references: [id])
+
+  @@map("bordereaux_non_conformes")
+}
+
+model VehiculeEmbarque {
+  id                   String    @id @default(cuid())
+  reportDate           DateTime  @db.Date
+  isRead               Boolean   @default(false)
+  readAt               DateTime?
+  immatriculation      String?
+  destination          String?
+  heure                DateTime?
+  retourReceptionColis String?   @db.Text
+  presenceConvoyeurs   String?   @db.Text
+  createdAt            DateTime  @default(now())
+
+  reportedById String
+  reportedBy   User    @relation(fields: [reportedById], references: [id])
+  readById     String?
+  readBy       User?   @relation("VehiculeEmbarqueReader", fields: [readById], references: [id])
+
+  @@map("vehicules_embarques")
+}
+
+// ==================== SLIP SIGNATURES ====================
+
+model SignatureLog {
+  id         String   @id @default(cuid())
+  slipNumber String
+  signedAt   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("signature_log")
+}
+
+// ==================== EVALUATION SYSTEM ====================
+
+model Criterion {
+  id            String   @id @default(cuid())
+  name          String
+  impact        Impact
+  defaultWeight Decimal  @db.Decimal(5, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  createdById String
+  createdBy   User                  @relation("CriteriaCreator", fields: [createdById], references: [id])
+  evaluations PersonnelEvaluation[]
+
+  @@map("criteria")
+}
+
+enum Impact {
+  POSITIVE
+  NEGATIVE
+}
+
+model PersonnelEvaluation {
+  id             String   @id @default(cuid())
+  evaluationDate DateTime @db.Date
+  weightOverride Decimal? @db.Decimal(5, 2)
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  userId       String
+  user         User      @relation("EvaluatedUser", fields: [userId], references: [id])
+  criteriaId   String
+  criteria     Criterion @relation(fields: [criteriaId], references: [id])
+  recordedById String
+  recordedBy   User      @relation("EvaluatingLeader", fields: [recordedById], references: [id])
+
+  @@map("personnel_evaluations")
+}
