@@ -32,14 +32,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
       className={cn(
         "h-full",
         "antialiased",
         geistSans.variable,
         geistMono.variable,
         "font-mono",
-        jetbrainsMono.variable,
+        jetbrainsMono.variable
       )}
     >
       <body className="min-h-full flex flex-col">

@@ -4,17 +4,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { BadgePlus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  impactOptions,
-  impactLabel,
-} from "@/components/criteria-management/constants";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { impactOptions } from "@/components/criteria-management/constants";
 import { buildCriterionLabel, buildUserLabel } from "./constants";
 import type {
   EvaluationCriterionOption,
@@ -36,7 +27,6 @@ type EvaluationFormProps = {
 export function EvaluationForm({
   criteria,
   formState,
-  selectedCriterion,
   submitting,
   users,
   onSubmit,
@@ -44,12 +34,30 @@ export function EvaluationForm({
   onReset,
 }: EvaluationFormProps) {
   const groupedCriteria = useMemo(() => {
-    return impactOptions.map((option) => ({
+    return impactOptions.map(option => ({
       impact: option.value,
       label: option.label,
-      items: criteria.filter((criterion) => criterion.impact === option.value),
+      items: criteria.filter(criterion => criterion.impact === option.value),
     }));
   }, [criteria]);
+
+  const criterionOptions = useMemo(() => {
+    return groupedCriteria.flatMap(group =>
+      group.items.map(criterion => ({
+        value: criterion.id,
+        label: buildCriterionLabel(criterion),
+        keywords: [group.label, criterion.name],
+      }))
+    );
+  }, [groupedCriteria]);
+
+  const userOptions = useMemo(() => {
+    return users.map(user => ({
+      value: user.id,
+      label: buildUserLabel(user),
+      keywords: [user.fullName, user.role],
+    }));
+  }, [users]);
 
   return (
     <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -59,7 +67,8 @@ export function EvaluationForm({
         </h3>
         <p className="text-sm text-slate-600">
           Sélectionnez un membre du personnel, choisissez un critère actif, puis
-          enregistrez l'observation du jour.
+          enregistrez l'observation du jour. Le poids applique reste celui du
+          critere defini par l'administration.
         </p>
       </div>
 
@@ -74,21 +83,14 @@ export function EvaluationForm({
               </Link>
             </Button>
           </div>
-          <Select
+          <SearchableSelect
             value={formState.userId}
-            onValueChange={(value) => onChange("userId", value)}
-          >
-            <SelectTrigger className="w-full rounded-md bg-white text-sm">
-              <SelectValue placeholder="Choisir un personnel" />
-            </SelectTrigger>
-            <SelectContent>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {buildUserLabel(user)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={value => onChange("userId", value)}
+            options={userOptions}
+            placeholder="Choisir un personnel"
+            searchPlaceholder="Rechercher un personnel"
+            emptyMessage="Aucun personnel ne correspond a la recherche."
+          />
         </div>
 
         <div className="space-y-2 text-sm">
@@ -101,28 +103,14 @@ export function EvaluationForm({
               </Link>
             </Button>
           </div>
-          <Select
+          <SearchableSelect
             value={formState.criteriaId}
-            onValueChange={(value) => onChange("criteriaId", value)}
-          >
-            <SelectTrigger className="w-full rounded-md bg-white text-sm">
-              <SelectValue placeholder="Choisir un critère" />
-            </SelectTrigger>
-            <SelectContent>
-              {groupedCriteria.map((group) => (
-                <div key={group.impact}>
-                  <div className="px-2 py-2 text-xs font-semibold text-slate-500 uppercase">
-                    {group.label}
-                  </div>
-                  {group.items.map((criterion) => (
-                    <SelectItem key={criterion.id} value={criterion.id}>
-                      {buildCriterionLabel(criterion)}
-                    </SelectItem>
-                  ))}
-                </div>
-              ))}
-            </SelectContent>
-          </Select>
+            onValueChange={value => onChange("criteriaId", value)}
+            options={criterionOptions}
+            placeholder="Choisir un critère"
+            searchPlaceholder="Rechercher un critère"
+            emptyMessage="Aucun critere ne correspond a la recherche."
+          />
         </div>
 
         <label className="space-y-1 text-sm">
@@ -130,35 +118,17 @@ export function EvaluationForm({
           <input
             type="date"
             value={formState.evaluationDate}
-            onChange={(event) => onChange("evaluationDate", event.target.value)}
+            onChange={event => onChange("evaluationDate", event.target.value)}
             className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
             required
           />
-        </label>
-
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">Poids personnalisé</span>
-          <input
-            type="number"
-            step="0.01"
-            value={formState.weightOverride}
-            onChange={(event) => onChange("weightOverride", event.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
-            placeholder={selectedCriterion?.defaultWeight || "Ex: -2.50"}
-          />
-          <span className="block text-xs text-slate-500">
-            Laisser vide pour utiliser le poids par défaut du critère.
-            {selectedCriterion
-              ? ` Poids actuel: ${selectedCriterion.defaultWeight} (${impactLabel(selectedCriterion.impact)}).`
-              : ""}
-          </span>
         </label>
 
         <label className="space-y-1 text-sm md:col-span-2">
           <span className="font-medium text-slate-700">Notes</span>
           <textarea
             value={formState.notes}
-            onChange={(event) => onChange("notes", event.target.value)}
+            onChange={event => onChange("notes", event.target.value)}
             className="min-h-28 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
             placeholder="Ajoutez un contexte ou une justification si nécessaire."
           />

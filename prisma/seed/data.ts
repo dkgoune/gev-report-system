@@ -1,4 +1,9 @@
-import type { Impact, Role, Service } from "../../src/generated/prisma/enums";
+import type {
+  AttendanceStatus,
+  Impact,
+  Role,
+  Service,
+} from "../../src/generated/prisma/enums";
 
 export type RootSeedConfig = {
   username: string;
@@ -12,7 +17,15 @@ export type SeedUserDefinition = {
   username: string;
   password: string;
   role: Role;
+  groupKey: string | null;
   phone: string | null;
+  isActive: boolean;
+};
+
+export type SeedGroupDefinition = {
+  key: string;
+  name: string;
+  service: Service;
   isActive: boolean;
 };
 
@@ -21,12 +34,18 @@ export type SeedCriterionDefinition = {
   name: string;
   impact: Impact;
   defaultWeight: string;
+  maxDaily: number | null;
   isActive: boolean;
+};
+
+export type SeedAttendanceCriterionSettingDefinition = {
+  criterionKey: string;
+  status: AttendanceStatus;
 };
 
 export type SeedDailyGeneralReportDefinition = {
   reportDate: string;
-  service: Service;
+  groupKey: string;
   reportedByKey: string;
   personnelPresent: string;
   personnelAbsent: string;
@@ -41,12 +60,14 @@ export type SeedDailyGeneralReportDefinition = {
 export type SeedColisNonVuDefinition = {
   reportDate: string;
   service: Service;
-  immatriculation: string;
-  agenceDepart: string;
   description: string;
-  destinataire: string;
-  destinatairePhone: string;
-  actionEnCours: string;
+  destination?: string;
+  provenance?: string;
+  personnesContactees?: string;
+  immatriculation?: string;
+  agenceDepart?: string;
+  destinataire?: string;
+  actionMenee?: string;
   reportedByKey: string;
   createdAt: string;
 };
@@ -64,14 +85,15 @@ export type SeedColisHorsBordereauDefinition = {
 
 export type SeedErreurDestinationDefinition = {
   reportDate: string;
-  immatriculation: string;
-  destination: string;
   description: string;
-  destinationPrevue: string;
-  destinationErronee: string;
-  destinataire: string;
-  destinatairePhone: string;
-  equipeFacturation: string;
+  nom?: string;
+  telephone?: string;
+  destinataire?: string;
+  equipeFacturation?: string;
+  immatriculation?: string;
+  destination?: string;
+  destinationPrevue?: string;
+  destinationErronee?: string;
   reportedByKey: string;
   createdAt: string;
 };
@@ -107,22 +129,13 @@ export type SeedColisTransfereDefinition = {
   createdAt: string;
 };
 
-export type SeedClassementColiDefinition = {
-  reportDate: string;
-  typeColis: string;
-  emplacement: string;
-  deplaceAvant15h: boolean;
-  notes: string;
-  reportedByKey: string;
-  createdAt: string;
-};
-
 export type SeedConvoyeurAbsentDefinition = {
   reportDate: string;
   nom: string;
   numero: string;
   vehicule: string;
   agenceProvenance: string;
+  userKey: string | null;
   reportedByKey: string;
   createdAt: string;
 };
@@ -150,6 +163,7 @@ export type SeedVehiculeEmbarqueDefinition = {
 export type SeedSignatureLogDefinition = {
   slipNumber: string;
   signedAt: string;
+  busArrivalTime: string | null;
   userKey: string;
 };
 
@@ -165,17 +179,17 @@ export type SeedPersonnelEvaluationDefinition = {
 
 type SeedServiceReportEntry = Omit<
   SeedDailyGeneralReportDefinition,
-  "service" | "reportedByKey"
+  "groupKey" | "reportedByKey"
 >;
 
 function buildServiceReports(
-  service: Service,
+  groupKey: string,
   reportedByKey: string,
-  entries: SeedServiceReportEntry[],
+  entries: SeedServiceReportEntry[]
 ): SeedDailyGeneralReportDefinition[] {
-  return entries.map((entry) => ({
+  return entries.map(entry => ({
     ...entry,
-    service,
+    groupKey,
     reportedByKey,
   }));
 }
@@ -188,6 +202,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: rootConfig.username,
       password: rootConfig.password,
       role: "admin",
+      groupKey: null,
       phone: "+221700000001",
       isActive: true,
     },
@@ -197,6 +212,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: "aissatou.admin",
       password: "Admin123!",
       role: "admin",
+      groupKey: null,
       phone: "+221700000002",
       isActive: true,
     },
@@ -205,7 +221,8 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       fullName: "Moussa Diop",
       username: "moussa.envoi",
       password: "Leader123!",
-      role: "leader_envoi",
+      role: "leader",
+      groupKey: "group_envoi",
       phone: "+221700000010",
       isActive: true,
     },
@@ -214,7 +231,8 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       fullName: "Cheikh Ba",
       username: "cheikh.piste",
       password: "Leader123!",
-      role: "leader_piste",
+      role: "subleader",
+      groupKey: "group_piste",
       phone: "+221700000011",
       isActive: true,
     },
@@ -223,7 +241,8 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       fullName: "Fatou Sow",
       username: "fatou.retrait",
       password: "Leader123!",
-      role: "leader_retrait",
+      role: "subleader",
+      groupKey: "group_retrait",
       phone: "+221700000012",
       isActive: true,
     },
@@ -233,6 +252,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: "abdoulaye.faye",
       password: "Agent123!",
       role: "agent",
+      groupKey: "group_envoi",
       phone: "+221700000101",
       isActive: true,
     },
@@ -242,6 +262,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: "mariama.diallo",
       password: "Agent123!",
       role: "agent",
+      groupKey: "group_piste",
       phone: "+221700000102",
       isActive: true,
     },
@@ -251,6 +272,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: "ibrahima.seck",
       password: "Agent123!",
       role: "agent",
+      groupKey: "group_retrait",
       phone: "+221700000103",
       isActive: true,
     },
@@ -260,6 +282,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: "khady.gueye",
       password: "Agent123!",
       role: "agent",
+      groupKey: "group_envoi",
       phone: "+221700000104",
       isActive: true,
     },
@@ -269,6 +292,7 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       username: "awa.toure",
       password: "Agent123!",
       role: "agent",
+      groupKey: "group_piste",
       phone: "+221700000105",
       isActive: false,
     },
@@ -277,7 +301,8 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       fullName: "Ousmane Kane",
       username: "ousmane.kane",
       password: "Convoyeur123!",
-      role: "convoyeur",
+      role: "convoyer",
+      groupKey: "group_envoi",
       phone: "+221700000201",
       isActive: true,
     },
@@ -286,7 +311,8 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       fullName: "Binta Fall",
       username: "binta.fall",
       password: "Convoyeur123!",
-      role: "convoyeur",
+      role: "convoyer",
+      groupKey: "group_piste",
       phone: "+221700000202",
       isActive: true,
     },
@@ -295,12 +321,34 @@ export function getSeedUsers(rootConfig: RootSeedConfig): SeedUserDefinition[] {
       fullName: "Aliou Sarr",
       username: "aliou.sarr",
       password: "Convoyeur123!",
-      role: "convoyeur",
+      role: "convoyer",
+      groupKey: "group_retrait",
       phone: "+221700000203",
       isActive: true,
     },
   ];
 }
+
+export const SEED_GROUPS: SeedGroupDefinition[] = [
+  {
+    key: "group_envoi",
+    name: "Equipe Envoi",
+    service: "envoi",
+    isActive: true,
+  },
+  {
+    key: "group_piste",
+    name: "Equipe Piste",
+    service: "piste",
+    isActive: true,
+  },
+  {
+    key: "group_retrait",
+    name: "Equipe Retrait",
+    service: "retrait",
+    isActive: true,
+  },
+];
 
 export const SEED_CRITERIA: SeedCriterionDefinition[] = [
   {
@@ -308,6 +356,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Ponctualite a la prise de poste",
     impact: "POSITIVE",
     defaultWeight: "2.50",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -315,6 +364,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Respect des consignes de securite",
     impact: "POSITIVE",
     defaultWeight: "3.00",
+    maxDaily: null,
     isActive: true,
   },
   {
@@ -322,6 +372,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Qualite du tri et du classement des colis",
     impact: "POSITIVE",
     defaultWeight: "2.00",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -329,6 +380,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Qualite de l'accueil client au retrait",
     impact: "POSITIVE",
     defaultWeight: "2.50",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -336,6 +388,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Initiative dans le traitement des anomalies",
     impact: "POSITIVE",
     defaultWeight: "1.50",
+    maxDaily: null,
     isActive: true,
   },
   {
@@ -343,6 +396,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Productivite en periode de pointe",
     impact: "POSITIVE",
     defaultWeight: "2.00",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -350,6 +404,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Cooperation inter-equipes et entraide",
     impact: "POSITIVE",
     defaultWeight: "1.50",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -357,6 +412,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Retard a la prise de poste",
     impact: "NEGATIVE",
     defaultWeight: "-1.50",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -364,6 +420,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Erreur de destination ou de ventilation",
     impact: "NEGATIVE",
     defaultWeight: "-2.50",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -371,6 +428,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Bordereau incomplet ou non conforme",
     impact: "NEGATIVE",
     defaultWeight: "-2.00",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -378,6 +436,7 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Absence non justifiee impactant le service",
     impact: "NEGATIVE",
     defaultWeight: "-3.00",
+    maxDaily: 1,
     isActive: true,
   },
   {
@@ -385,9 +444,22 @@ export const SEED_CRITERIA: SeedCriterionDefinition[] = [
     name: "Transmission tardive des informations de service",
     impact: "NEGATIVE",
     defaultWeight: "-1.00",
+    maxDaily: 1,
     isActive: true,
   },
 ];
+
+export const SEED_ATTENDANCE_CRITERION_SETTINGS: SeedAttendanceCriterionSettingDefinition[] =
+  [
+    {
+      criterionKey: "ponctualite",
+      status: "PRESENT",
+    },
+    {
+      criterionKey: "absence_non_justifiee",
+      status: "ABSENT",
+    },
+  ];
 
 const ENVOI_REPORTS: SeedServiceReportEntry[] = [
   {
@@ -825,66 +897,61 @@ const RETRAIT_REPORTS: SeedServiceReportEntry[] = [
 ];
 
 export const SEED_DAILY_GENERAL_REPORTS: SeedDailyGeneralReportDefinition[] = [
-  ...buildServiceReports("envoi", "leader_envoi", ENVOI_REPORTS),
-  ...buildServiceReports("piste", "leader_piste", PISTE_REPORTS),
-  ...buildServiceReports("retrait", "leader_retrait", RETRAIT_REPORTS),
+  ...buildServiceReports("group_envoi", "leader_envoi", ENVOI_REPORTS),
+  ...buildServiceReports("group_piste", "leader_piste", PISTE_REPORTS),
+  ...buildServiceReports("group_retrait", "leader_retrait", RETRAIT_REPORTS),
 ];
 
 export const SEED_COLIS_NON_VUS: SeedColisNonVuDefinition[] = [
   {
     reportDate: "2026-04-21",
-    service: "retrait",
+    service: "envoi",
     immatriculation: "DK-4215-AB",
     agenceDepart: "Thies",
     description:
       "Colis textile annonce disponible mais non localise au comptoir 2.",
     destinataire: "Mame Diarra Fall",
-    destinatairePhone: "+221770000301",
-    actionEnCours:
+    actionMenee:
       "Recherche lancee avec la piste et blocage de remise jusqu'a confirmation.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_envoi",
     createdAt: "2026-04-21T11:45:00.000Z",
   },
   {
     reportDate: "2026-04-27",
-    service: "retrait",
+    service: "envoi",
     immatriculation: "DK-5084-CD",
     agenceDepart: "Mbour",
     description:
       "Colis cosmetique scanne a l'arrivee mais absent du rack de retrait rapide.",
     destinataire: "Aminata Cisse",
-    destinatairePhone: "+221770000302",
-    actionEnCours:
+    actionMenee:
       "Controle croise des scans et inspection de la palette mixte du matin.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_envoi",
     createdAt: "2026-04-27T16:10:00.000Z",
   },
   {
     reportDate: "2026-05-04",
     service: "piste",
-    immatriculation: "DK-6138-EF",
-    agenceDepart: "Mbour",
+    destination: "Mbour",
+    provenance: "Hub Dakar",
     description:
       "Trois colis de pieces auto annonces sur palette PMB-04 mais non vus au dechargement immediat.",
-    destinataire: "Garage El Hadj Auto",
-    destinatairePhone: "+221770000303",
-    actionEnCours:
+    personnesContactees:
       "Palette reouverte, colis retrouves sur un sous-lot standard avant cloture.",
     reportedByKey: "leader_piste",
     createdAt: "2026-05-04T10:18:00.000Z",
   },
   {
     reportDate: "2026-05-05",
-    service: "retrait",
+    service: "envoi",
     immatriculation: "DK-7301-IJ",
     agenceDepart: "Richard-Toll",
     description:
       "Colis outillage annonce la veille sans mise en rayon au comptoir entreprise.",
     destinataire: "Societe Sahel BTP",
-    destinatairePhone: "+221770000305",
-    actionEnCours:
+    actionMenee:
       "Recherche maintenue avec verification des racks societes et appel agence depart.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_envoi",
     createdAt: "2026-05-05T12:02:00.000Z",
   },
 ];
@@ -899,7 +966,7 @@ export const SEED_COLIS_HORS_BORDEREAU: SeedColisHorsBordereauDefinition[] = [
     destinatairePhone: "+221770000401",
     actionMenee:
       "Appel agence depart, ajout manuel au manifeste et photo archivee.",
-    reportedByKey: "leader_piste",
+    reportedByKey: "leader_retrait",
     createdAt: "2026-04-21T12:40:00.000Z",
   },
   {
@@ -911,7 +978,7 @@ export const SEED_COLIS_HORS_BORDEREAU: SeedColisHorsBordereauDefinition[] = [
     destinatairePhone: "+221770000402",
     actionMenee:
       "Ecarts documentes et regularisation demandee avant cloture de reception.",
-    reportedByKey: "leader_piste",
+    reportedByKey: "leader_retrait",
     createdAt: "2026-04-30T11:25:00.000Z",
   },
   {
@@ -923,7 +990,7 @@ export const SEED_COLIS_HORS_BORDEREAU: SeedColisHorsBordereauDefinition[] = [
     destinatairePhone: "+221770000404",
     actionMenee:
       "Emission d'un bordereau complementaire puis reintegration du lot.",
-    reportedByKey: "leader_piste",
+    reportedByKey: "leader_retrait",
     createdAt: "2026-05-05T09:50:00.000Z",
   },
 ];
@@ -931,28 +998,22 @@ export const SEED_COLIS_HORS_BORDEREAU: SeedColisHorsBordereauDefinition[] = [
 export const SEED_ERREURS_DESTINATION: SeedErreurDestinationDefinition[] = [
   {
     reportDate: "2026-04-22",
-    immatriculation: "DK-5523-KL",
-    destination: "Thies",
+    nom: "Boutique Safa",
+    telephone: "+221770000501",
     description:
       "Un colis textile a ete ventile vers le couloir Touba avant correction.",
-    destinationPrevue: "Thies",
-    destinationErronee: "Touba",
     destinataire: "Boutique Safa",
-    destinatairePhone: "+221770000501",
     equipeFacturation: "Equipe matinale piste",
     reportedByKey: "leader_piste",
     createdAt: "2026-04-22T10:05:00.000Z",
   },
   {
     reportDate: "2026-04-28",
-    immatriculation: "DK-6614-MN",
-    destination: "Kaolack",
+    nom: "Quincaillerie du Centre",
+    telephone: "+221770000502",
     description:
       "Colis de quincaillerie dirige a tort vers Touba sur le premier scan.",
-    destinationPrevue: "Kaolack",
-    destinationErronee: "Touba",
     destinataire: "Quincaillerie du Centre",
-    destinatairePhone: "+221770000502",
     equipeFacturation: "Equipe de ventilation zone est",
     reportedByKey: "leader_piste",
     createdAt: "2026-04-28T09:40:00.000Z",
@@ -965,10 +1026,8 @@ export const SEED_ERREURS_DESTINATION: SeedErreurDestinationDefinition[] = [
       "Un lot express a ete pointe sur le couloir standard en reprise post-ferie.",
     destinationPrevue: "Ziguinchor",
     destinationErronee: "Kaolack",
-    destinataire: "Sunu Pharma",
-    destinatairePhone: "+221770000503",
-    equipeFacturation: "Equipe reprise ferie",
-    reportedByKey: "leader_piste",
+    telephone: "+221770000503",
+    reportedByKey: "leader_retrait",
     createdAt: "2026-05-04T15:14:00.000Z",
   },
 ];
@@ -982,7 +1041,7 @@ export const SEED_COLIS_RETARDES: SeedColisRetardeDefinition[] = [
     destinataire: "Pharmacie Medina",
     motifRetard: "Retard de rotation vehicule sur l'axe sud.",
     actionEnCours: "Client informe, suivi maintenu avec l'agence d'origine.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-22T15:00:00.000Z",
   },
   {
@@ -993,7 +1052,7 @@ export const SEED_COLIS_RETARDES: SeedColisRetardeDefinition[] = [
     motifRetard: "Arrivee tardive de la navette Ziguinchor.",
     actionEnCours:
       "Notification SMS manuelle et suivi prioritaire au dechargement suivant.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-29T17:04:00.000Z",
   },
   {
@@ -1005,7 +1064,7 @@ export const SEED_COLIS_RETARDES: SeedColisRetardeDefinition[] = [
     motifRetard: "Afflux exceptionnel a la reprise du trafic.",
     actionEnCours:
       "Priorisation demandee a la piste pour mise a disposition mardi matin.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_piste",
     createdAt: "2026-05-04T17:02:00.000Z",
   },
   {
@@ -1016,7 +1075,7 @@ export const SEED_COLIS_RETARDES: SeedColisRetardeDefinition[] = [
     destinataire: "Cooperative Niani",
     motifRetard: "Comptage contradictoire sur le transfert du matin.",
     actionEnCours: "Client prevenu et dossier maintenu en priorite 1.",
-    reportedByKey: "leader_retrait",
+    reportedByKey: "leader_piste",
     createdAt: "2026-05-05T14:20:00.000Z",
   },
 ];
@@ -1063,7 +1122,7 @@ export const SEED_COLIS_TRANSFERES: SeedColisTransfereDefinition[] = [
     nombreColis: 26,
     chauffeur: "Ousmane Kane",
     statut: "Parti a 19h10, arrivee confirmee le lendemain.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-22T19:15:00.000Z",
   },
   {
@@ -1073,7 +1132,7 @@ export const SEED_COLIS_TRANSFERES: SeedColisTransfereDefinition[] = [
     nombreColis: 41,
     chauffeur: "Aliou Sarr",
     statut: "Charge complet et scelle avant fermeture mensuelle.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-30T19:35:00.000Z",
   },
   {
@@ -1083,7 +1142,7 @@ export const SEED_COLIS_TRANSFERES: SeedColisTransfereDefinition[] = [
     nombreColis: 38,
     chauffeur: "Aliou Sarr",
     statut: "Depart retarde par panne scanner puis stabilise.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-05-04T19:20:00.000Z",
   },
   {
@@ -1093,48 +1152,8 @@ export const SEED_COLIS_TRANSFERES: SeedColisTransfereDefinition[] = [
     nombreColis: 34,
     chauffeur: "Ousmane Kane",
     statut: "Comptage contradictoire effectue puis expedition validee.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-05-05T19:05:00.000Z",
-  },
-];
-
-export const SEED_CLASSEMENT_COLIS: SeedClassementColiDefinition[] = [
-  {
-    reportDate: "2026-04-20",
-    typeColis: "Standard agence",
-    emplacement: "Rack B2 - zone Thies",
-    deplaceAvant15h: true,
-    notes: "Reclassement effectue avant 14h30 pour liberer le couloir central.",
-    reportedByKey: "leader_piste",
-    createdAt: "2026-04-20T14:32:00.000Z",
-  },
-  {
-    reportDate: "2026-04-24",
-    typeColis: "Express medical",
-    emplacement: "Armoire securisee E1",
-    deplaceAvant15h: true,
-    notes: "Lot bascule en zone securisee avant la pointe de fin de semaine.",
-    reportedByKey: "leader_piste",
-    createdAt: "2026-04-24T13:58:00.000Z",
-  },
-  {
-    reportDate: "2026-05-04",
-    typeColis: "Palette mixte reprise ferie",
-    emplacement: "Couloir central C1",
-    deplaceAvant15h: false,
-    notes: "Reclassement termine a 16h20 apres controle des lots Mbour.",
-    reportedByKey: "leader_piste",
-    createdAt: "2026-05-04T16:24:00.000Z",
-  },
-  {
-    reportDate: "2026-05-05",
-    typeColis: "Hors bordereau regularise",
-    emplacement: "Rack H1 - anomalies traitees",
-    deplaceAvant15h: true,
-    notes:
-      "Lot HT-505 reintegre au circuit apres emission du bordereau complementaire.",
-    reportedByKey: "leader_piste",
-    createdAt: "2026-05-05T14:22:00.000Z",
   },
 ];
 
@@ -1145,6 +1164,7 @@ export const SEED_CONVOYEURS_ABSENTS: SeedConvoyeurAbsentDefinition[] = [
     numero: "+221770000601",
     vehicule: "DK-9001-TR",
     agenceProvenance: "Louga",
+    userKey: null,
     reportedByKey: "leader_envoi",
     createdAt: "2026-04-23T07:20:00.000Z",
   },
@@ -1154,15 +1174,17 @@ export const SEED_CONVOYEURS_ABSENTS: SeedConvoyeurAbsentDefinition[] = [
     numero: "+221700000201",
     vehicule: "DK-9102-TR",
     agenceProvenance: "Kolda",
+    userKey: "convoyeur_ousmane",
     reportedByKey: "leader_envoi",
     createdAt: "2026-04-28T06:55:00.000Z",
   },
   {
     reportDate: "2026-05-01",
-    nom: "Serigne Laye",
-    numero: "+221770000603",
+    nom: "Aliou Sarr",
+    numero: "+221700000203",
     vehicule: "DK-9203-TR",
     agenceProvenance: "Touba",
+    userKey: "convoyeur_aliou",
     reportedByKey: "leader_envoi",
     createdAt: "2026-05-01T08:30:00.000Z",
   },
@@ -1186,7 +1208,7 @@ export const SEED_BORDEREAUX_NON_CONFORMES: SeedBordereauNonConformeDefinition[]
       motifNonConformite:
         "Ecart entre quantite physique recue et total bordereau.",
       actionMenee: "Controle contradictoire et correction signee par la piste.",
-      reportedByKey: "leader_piste",
+      reportedByKey: "leader_envoi",
       createdAt: "2026-04-30T10:18:00.000Z",
     },
     {
@@ -1196,7 +1218,7 @@ export const SEED_BORDEREAUX_NON_CONFORMES: SeedBordereauNonConformeDefinition[]
         "Reference hors bordereau sur un carton de pieces hydrauliques.",
       actionMenee:
         "Creation d'un bordereau complementaire et reintegration du lot.",
-      reportedByKey: "leader_piste",
+      reportedByKey: "leader_envoi",
       createdAt: "2026-05-05T10:05:00.000Z",
     },
   ];
@@ -1211,7 +1233,7 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
       "Reception colis bouclee a 18h40, fermeture quai validee.",
     presenceConvoyeurs:
       "Ousmane Kane present et depart confirme par le poste central.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-22T19:18:00.000Z",
   },
   {
@@ -1222,7 +1244,7 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
     retourReceptionColis:
       "Chargement finalise sans reliquat apres controle export.",
     presenceConvoyeurs: "Aliou Sarr present, signature recue avant sortie.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-24T20:15:00.000Z",
   },
   {
@@ -1233,7 +1255,7 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
     retourReceptionColis:
       "Depart differe a cause de l'absence convoyeur en debut de poste.",
     presenceConvoyeurs: "Aliou Sarr a assure le convoyage de rattrapage.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-04-28T20:36:00.000Z",
   },
   {
@@ -1245,7 +1267,7 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
       "Depart maintenu apres remplacement du scanner de quai.",
     presenceConvoyeurs:
       "Aliou Sarr et convoyeur adjoint presents au point de sortie.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-05-04T19:28:00.000Z",
   },
   {
@@ -1256,7 +1278,7 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
     retourReceptionColis:
       "Comptage contradictoire boucle avant fermeture du quai.",
     presenceConvoyeurs: "Ousmane Kane present et bordereau signe avant depart.",
-    reportedByKey: "leader_envoi",
+    reportedByKey: "leader_piste",
     createdAt: "2026-05-05T19:11:00.000Z",
   },
 ];
@@ -1264,36 +1286,43 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
 export const SEED_SIGNATURE_LOGS: SeedSignatureLogDefinition[] = [
   {
     slipNumber: "SLIP-2204-01",
+    busArrivalTime: "2026-04-22T18:55:00.000Z",
     signedAt: "2026-04-22T19:14:00.000Z",
     userKey: "convoyeur_ousmane",
   },
   {
     slipNumber: "SLIP-2204-02",
+    busArrivalTime: "2026-04-22T18:55:00.000Z",
     signedAt: "2026-04-22T19:16:00.000Z",
     userKey: "leader_envoi",
   },
   {
     slipNumber: "SLIP-2404-01",
+    busArrivalTime: "2026-04-24T19:46:00.000Z",
     signedAt: "2026-04-24T20:10:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
     slipNumber: "SLIP-2804-01",
+    busArrivalTime: "2026-04-28T20:08:00.000Z",
     signedAt: "2026-04-28T20:32:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
     slipNumber: "SLIP-3004-01",
+    busArrivalTime: "2026-04-30T19:20:00.000Z",
     signedAt: "2026-04-30T19:38:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
     slipNumber: "SLIP-0405-01",
+    busArrivalTime: "2026-05-04T19:02:00.000Z",
     signedAt: "2026-05-04T19:22:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
     slipNumber: "SLIP-0505-01",
+    busArrivalTime: "2026-05-05T18:48:00.000Z",
     signedAt: "2026-05-05T19:08:00.000Z",
     userKey: "convoyeur_ousmane",
   },

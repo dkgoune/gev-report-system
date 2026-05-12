@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import type { Role } from "@/generated/prisma/enums";
-import { canAccessPlatform } from "@/lib/authz";
+import { canAccessAdminWorkspace } from "@/lib/authz";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
 const ALLOWED_ROLES: Role[] = [
   "admin",
-  "leader_envoi",
-  "leader_piste",
-  "leader_retrait",
+  "leader",
+  "subleader",
   "agent",
-  "convoyeur",
+  "convoyer",
 ];
 
 function isAllowedRole(role: string): role is Role {
@@ -21,7 +20,7 @@ function isAllowedRole(role: string): role is Role {
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
+  if (!session || !canAccessAdminWorkspace(session.role)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -36,6 +35,14 @@ export async function GET() {
       isActive: true,
       createdAt: true,
       updatedAt: true,
+      group: {
+        select: {
+          id: true,
+          name: true,
+          service: true,
+          isActive: true,
+        },
+      },
     },
   });
 
@@ -45,7 +52,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
+  if (!session || !canAccessAdminWorkspace(session.role)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
       fullName: string;
       username: string;
       role: string;
+      groupId: string | null;
       phone: string;
       password: string;
       isActive: boolean;
@@ -62,6 +70,7 @@ export async function POST(request: Request) {
     const fullName = body.fullName?.trim();
     const username = body.username?.trim();
     const role = body.role?.trim();
+    const groupId = body.groupId?.trim() || null;
     const password = body.password;
     const phone = body.phone?.trim() || null;
     const isActive = body.isActive ?? true;
@@ -72,7 +81,7 @@ export async function POST(request: Request) {
           error:
             "Nom complet, nom utilisateur, rôle et mot de passe sont obligatoires.",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -83,8 +92,29 @@ export async function POST(request: Request) {
     if (password.length < 6) {
       return NextResponse.json(
         { error: "Le mot de passe doit contenir au moins 6 caractères." },
-        { status: 400 },
+        { status: 400 }
       );
+    }
+
+    if (role !== "admin" && !groupId) {
+      return NextResponse.json(
+        { error: "Un groupe est obligatoire pour ce rôle." },
+        { status: 400 }
+      );
+    }
+
+    if (groupId) {
+      const group = await prisma.group.findFirst({
+        where: { id: groupId, isActive: true },
+        select: { id: true },
+      });
+
+      if (!group) {
+        return NextResponse.json(
+          { error: "Groupe invalide." },
+          { status: 400 }
+        );
+      }
     }
 
     const user = await prisma.user.create({
@@ -92,6 +122,7 @@ export async function POST(request: Request) {
         fullName,
         username,
         role,
+        groupId,
         phone,
         password: hashPassword(password),
         isActive,
@@ -105,6 +136,14 @@ export async function POST(request: Request) {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        group: {
+          select: {
+            id: true,
+            name: true,
+            service: true,
+            isActive: true,
+          },
+        },
       },
     });
 
@@ -118,13 +157,13 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         { error: "Ce nom utilisateur existe déjà." },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
     return NextResponse.json(
       { error: "Impossible de créer le personnel." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

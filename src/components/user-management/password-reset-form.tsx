@@ -36,7 +36,7 @@ export function PasswordResetForm({
         <input
           type="password"
           value={newPassword}
-          onChange={(event) => onNewPasswordChange(event.target.value)}
+          onChange={event => onNewPasswordChange(event.target.value)}
           className="w-full rounded-md border border-slate-300 px-3 py-2"
           minLength={6}
           autoFocus
@@ -44,11 +44,13 @@ export function PasswordResetForm({
       </label>
 
       <label className="block space-y-1 text-sm">
-        <span className="font-medium text-slate-700">Confirmer le mot de passe</span>
+        <span className="font-medium text-slate-700">
+          Confirmer le mot de passe
+        </span>
         <input
           type="password"
           value={confirmPassword}
-          onChange={(event) => onConfirmPasswordChange(event.target.value)}
+          onChange={event => onConfirmPasswordChange(event.target.value)}
           className="w-full rounded-md border border-slate-300 px-3 py-2"
           minLength={6}
         />

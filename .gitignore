@@ -47,3 +47,7 @@ next-env.d.ts
 docker-compose.yml
 
 test.*
+
+prisma/migrations
+
+temp

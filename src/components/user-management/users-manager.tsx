@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { roleLabel } from "./constants";
+import { roleLabel, serviceOptionLabel } from "./constants";
 import type { UserItem } from "./types";
 import { UsersList } from "./users-list";
 
@@ -20,11 +20,12 @@ export function UsersManager({
   const isAdmin = currentUserRole === "admin";
 
   const [users, setUsers] = useState<UserItem[]>(initialUsers);
-  const [loading, setLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   async function loadUsers() {
+    setLoadingUsers(true);
     const response = await fetch("/api/users", { method: "GET" });
     const payload = (await response.json().catch(() => null)) as {
       users?: UserItem[];
@@ -33,12 +34,12 @@ export function UsersManager({
 
     if (!response.ok) {
       toast.error(payload?.error || "Impossible de charger les personnels.");
-      setLoading(false);
+      setLoadingUsers(false);
       return;
     }
 
     setUsers(payload?.users || []);
-    setLoading(false);
+    setLoadingUsers(false);
   }
 
   const filteredUsers = useMemo(() => {
@@ -48,14 +49,22 @@ export function UsersManager({
       return users;
     }
 
-    return users.filter((user) => {
+    return users.filter(user => {
       return (
         user.fullName.toLowerCase().includes(term) ||
         user.username.toLowerCase().includes(term) ||
-        roleLabel(user.role).toLowerCase().includes(term)
+        roleLabel(user.role).toLowerCase().includes(term) ||
+        (user.phone || "").toLowerCase().includes(term) ||
+        (user.group?.name || "").toLowerCase().includes(term) ||
+        (user.group ? serviceOptionLabel(user.group.service) : "")
+          .toLowerCase()
+          .includes(term)
       );
     });
   }, [search, users]);
+
+  const totalUsers = users.length;
+  const activeUsers = users.filter(user => user.isActive).length;
 
   async function onDelete(user: UserItem) {
     setDeletingId(user.id);
@@ -76,20 +85,27 @@ export function UsersManager({
 
     toast.success("Personnel supprimé.");
     setDeletingId(null);
-    setLoading(true);
     await loadUsers();
   }
-
   return (
     <div className="space-y-8">
+      <div className="grid gap-4 md:grid-cols-2">
+        <SummaryCard label="Personnels" value={totalUsers} tone="slate" />
+        <SummaryCard
+          label="Personnels actifs"
+          value={activeUsers}
+          tone="emerald"
+        />
+      </div>
+
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
             Gestion des personnels
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Consultez les comptes, filtrez-les et lancez les actions de gestion
-            depuis le menu de ligne.
+            Administrez les comptes, leur rattachement aux groupes métier et
+            leurs accès depuis cette page dédiée.
           </p>
         </div>
 
@@ -100,7 +116,7 @@ export function UsersManager({
 
       <UsersList
         users={filteredUsers}
-        loading={loading}
+        loading={loadingUsers}
         search={search}
         isAdmin={isAdmin}
         deletingId={deletingId}
@@ -108,5 +124,27 @@ export function UsersManager({
         onDelete={onDelete}
       />
     </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "slate" | "emerald";
+}) {
+  const toneClassName = {
+    slate: "border-slate-200 bg-slate-50 text-slate-900",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  }[tone];
+
+  return (
+    <article className={`rounded-lg border p-4 ${toneClassName}`}>
+      <p className="text-sm font-medium opacity-80">{label}</p>
+      <p className="mt-2 text-3xl font-bold">{value}</p>
+    </article>
   );
 }

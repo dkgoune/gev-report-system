@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AppShell } from "@/app/components/app-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { canAccessPlatform } from "@/lib/authz";
 import { getServerSession } from "@/lib/session";
 

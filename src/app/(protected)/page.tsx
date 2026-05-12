@@ -1,36 +1,32 @@
-export default function DashboardPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Tableau de bord</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Bienvenue dans l&apos;espace de travail des responsables. Utilisez la
-          navigation latérale pour gérer les utilisateurs, les critères et les
-          rapports.
-        </p>
-      </div>
+import { redirect } from "next/navigation";
+import { DashboardSurface } from "@/components/analytics/analytics-surfaces";
+import { getAnalyticsSnapshot } from "@/lib/analytics";
+import { resolveAnalyticsRange } from "@/lib/analytics-range";
+import { getServerSession } from "@/lib/session";
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-lg font-semibold text-slate-900">
-            Accès sécurisé
-          </h3>
-          <p className="mt-2 text-sm text-slate-600">
-            Les routes de l&apos;application sont protégées au niveau du layout
-            et réservées aux comptes admin et chefs de service.
-          </p>
-        </article>
+type DashboardPageProps = {
+  searchParams: Promise<{
+    from?: string;
+    preset?: string;
+    to?: string;
+  }>;
+};
 
-        <article className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-lg font-semibold text-slate-900">
-            Gestion opérationnelle
-          </h3>
-          <p className="mt-2 text-sm text-slate-600">
-            Utilisez les sections Personnels et Critères pour piloter la
-            configuration métier de la plateforme.
-          </p>
-        </article>
-      </div>
-    </div>
-  );
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
+  const session = await getServerSession();
+
+  if (!session) {
+    redirect("/auth/login");
+  }
+
+  if (session.role !== "admin") {
+    redirect("/reports");
+  }
+
+  const range = resolveAnalyticsRange(await searchParams);
+  const snapshot = await getAnalyticsSnapshot(session, range);
+
+  return <DashboardSurface snapshot={snapshot} />;
 }

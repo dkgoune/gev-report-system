@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const accessDenied = params.error === "unauthorized";
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 px-4">
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-slate-50 to-slate-100 px-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
         <div className="mb-8">
           <p className="text-xs font-bold text-teal-700 tracking-widest uppercase mb-2">

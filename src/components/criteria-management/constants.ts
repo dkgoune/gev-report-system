@@ -4,6 +4,7 @@ export const defaultCriterionFormState: CriterionFormState = {
   name: "",
   impact: "POSITIVE",
   defaultWeight: "1.00",
+  maxDaily: "",
   isActive: true,
 };
 
@@ -13,5 +14,5 @@ export const impactOptions: Array<{ value: CriterionImpact; label: string }> = [
 ];
 
 export function impactLabel(impact: CriterionImpact): string {
-  return impactOptions.find((item) => item.value === impact)?.label || impact;
+  return impactOptions.find(item => item.value === impact)?.label || impact;
 }

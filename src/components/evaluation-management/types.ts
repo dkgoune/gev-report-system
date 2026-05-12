@@ -45,6 +45,5 @@ export type EvaluationFormState = {
   userId: string;
   criteriaId: string;
   evaluationDate: string;
-  weightOverride: string;
   notes: string;
 };

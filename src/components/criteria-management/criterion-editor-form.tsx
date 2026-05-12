@@ -55,16 +55,15 @@ export function CriterionEditorForm({
         payload?.error ||
           (mode === "create"
             ? "Impossible de créer le critère."
-            : "Impossible de mettre à jour le critère."),
+            : "Impossible de mettre à jour le critère.")
       );
       setSubmitting(false);
       return;
     }
 
     toast.success(
-      mode === "create" ? "Critère créé avec succès." : "Critère mis à jour.",
+      mode === "create" ? "Critère créé avec succès." : "Critère mis à jour."
     );
-    setFormState(initialState);
     setSubmitting(false);
   }
 
@@ -87,8 +86,8 @@ export function CriterionEditorForm({
             <span className="font-medium text-slate-700">Nom du critère</span>
             <input
               value={formState.name}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   name: event.target.value,
                 }))
@@ -103,8 +102,8 @@ export function CriterionEditorForm({
             <span className="font-medium text-slate-700">Impact</span>
             <Select
               value={formState.impact}
-              onValueChange={(value) =>
-                setFormState((current) => ({
+              onValueChange={value =>
+                setFormState(current => ({
                   ...current,
                   impact: value as CriterionImpact,
                 }))
@@ -114,7 +113,7 @@ export function CriterionEditorForm({
                 <SelectValue placeholder="Choisir un impact" />
               </SelectTrigger>
               <SelectContent>
-                {impactOptions.map((option) => (
+                {impactOptions.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -129,8 +128,8 @@ export function CriterionEditorForm({
               type="number"
               step="0.01"
               value={formState.defaultWeight}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   defaultWeight: event.target.value,
                 }))
@@ -140,12 +139,36 @@ export function CriterionEditorForm({
             />
           </label>
 
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-slate-700">
+              Maximum quotidien
+            </span>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={formState.maxDaily}
+              onChange={event =>
+                setFormState(current => ({
+                  ...current,
+                  maxDaily: event.target.value,
+                }))
+              }
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              placeholder="Laisser vide pour aucune limite"
+            />
+            <span className="block text-xs text-slate-500">
+              Nombre maximum d'evaluations appliquees par jour pour un meme
+              personnel avec ce critere.
+            </span>
+          </label>
+
           <label className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm md:col-span-2">
             <input
               type="checkbox"
               checked={formState.isActive}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   isActive: event.target.checked,
                 }))

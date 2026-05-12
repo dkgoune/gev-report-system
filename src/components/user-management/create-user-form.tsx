@@ -26,7 +26,7 @@ export function CreateUserForm({
           <span className="font-medium text-slate-700">Nom complet</span>
           <input
             value={formState.fullName}
-            onChange={(event) =>
+            onChange={event =>
               onChange({
                 ...formState,
                 fullName: event.target.value,
@@ -41,7 +41,7 @@ export function CreateUserForm({
           <span className="font-medium text-slate-700">Nom utilisateur</span>
           <input
             value={formState.username}
-            onChange={(event) =>
+            onChange={event =>
               onChange({
                 ...formState,
                 username: event.target.value,
@@ -56,7 +56,7 @@ export function CreateUserForm({
           <span className="font-medium text-slate-700">Rôle</span>
           <select
             value={formState.role}
-            onChange={(event) =>
+            onChange={event =>
               onChange({
                 ...formState,
                 role: event.target.value as Role,
@@ -64,7 +64,7 @@ export function CreateUserForm({
             }
             className="w-full rounded-md border border-slate-300 px-3 py-2"
           >
-            {roleOptions.map((role) => (
+            {roleOptions.map(role => (
               <option key={role.value} value={role.value}>
                 {role.label}
               </option>
@@ -76,7 +76,7 @@ export function CreateUserForm({
           <span className="font-medium text-slate-700">Téléphone</span>
           <input
             value={formState.phone}
-            onChange={(event) =>
+            onChange={event =>
               onChange({
                 ...formState,
                 phone: event.target.value,
@@ -91,7 +91,7 @@ export function CreateUserForm({
           <input
             type="password"
             value={formState.password}
-            onChange={(event) =>
+            onChange={event =>
               onChange({
                 ...formState,
                 password: event.target.value,
@@ -107,7 +107,7 @@ export function CreateUserForm({
           <input
             type="checkbox"
             checked={formState.isActive}
-            onChange={(event) =>
+            onChange={event =>
               onChange({
                 ...formState,
                 isActive: event.target.checked,

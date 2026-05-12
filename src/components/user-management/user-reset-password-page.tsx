@@ -48,7 +48,7 @@ export function UserResetPasswordPage({
 
     if (!response.ok) {
       setResetError(
-        payload?.error || "Impossible de réinitialiser le mot de passe.",
+        payload?.error || "Impossible de réinitialiser le mot de passe."
       );
       setResetting(false);
       return;

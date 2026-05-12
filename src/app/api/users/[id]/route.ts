@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import type { Role } from "@/generated/prisma/enums";
-import { canAccessPlatform } from "@/lib/authz";
+import { canAccessAdminWorkspace } from "@/lib/authz";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
 const ALLOWED_ROLES: Role[] = [
   "admin",
-  "leader_envoi",
-  "leader_piste",
-  "leader_retrait",
+  "leader",
+  "subleader",
   "agent",
-  "convoyeur",
+  "convoyer",
 ];
 
 function isAllowedRole(role: string): role is Role {
@@ -23,7 +22,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
+  if (!session || !canAccessAdminWorkspace(session.role)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -34,6 +33,7 @@ export async function PATCH(request: Request, { params }: Params) {
       fullName: string;
       username: string;
       role: string;
+      groupId: string | null;
       phone: string | null;
       password: string;
       isActive: boolean;
@@ -43,6 +43,7 @@ export async function PATCH(request: Request, { params }: Params) {
       fullName?: string;
       username?: string;
       role?: Role;
+      groupId?: string | null;
       phone?: string | null;
       password?: string;
       isActive?: boolean;
@@ -53,7 +54,7 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!fullName) {
         return NextResponse.json(
           { error: "Le nom complet ne peut pas être vide." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       payload.fullName = fullName;
@@ -64,7 +65,7 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!username) {
         return NextResponse.json(
           { error: "Le nom utilisateur ne peut pas être vide." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       payload.username = username;
@@ -82,24 +83,19 @@ export async function PATCH(request: Request, { params }: Params) {
       payload.isActive = body.isActive;
     }
 
+    if (body.groupId !== undefined) {
+      payload.groupId = body.groupId?.trim() || null;
+    }
+
     if (body.phone !== undefined) {
       payload.phone = body.phone ? body.phone.trim() : null;
     }
 
     if (typeof body.password === "string" && body.password.length > 0) {
-      if (session.role !== "admin") {
-        return NextResponse.json(
-          {
-            error:
-              "Seul un administrateur peut réinitialiser les mots de passe.",
-          },
-          { status: 403 },
-        );
-      }
       if (body.password.length < 6) {
         return NextResponse.json(
           { error: "Le mot de passe doit contenir au moins 6 caractères." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       payload.password = hashPassword(body.password);
@@ -108,8 +104,45 @@ export async function PATCH(request: Request, { params }: Params) {
     if (Object.keys(payload).length === 0) {
       return NextResponse.json(
         { error: "Aucune modification détectée." },
-        { status: 400 },
+        { status: 400 }
       );
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, groupId: true },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Personnel introuvable." },
+        { status: 404 }
+      );
+    }
+
+    const nextRole = payload.role ?? currentUser.role;
+    const nextGroupId =
+      payload.groupId !== undefined ? payload.groupId : currentUser.groupId;
+
+    if (nextRole !== "admin" && !nextGroupId) {
+      return NextResponse.json(
+        { error: "Un groupe est obligatoire pour ce rôle." },
+        { status: 400 }
+      );
+    }
+
+    if (nextGroupId) {
+      const group = await prisma.group.findFirst({
+        where: { id: nextGroupId, isActive: true },
+        select: { id: true },
+      });
+
+      if (!group) {
+        return NextResponse.json(
+          { error: "Groupe invalide." },
+          { status: 400 }
+        );
+      }
     }
 
     const user = await prisma.user.update({
@@ -124,6 +157,14 @@ export async function PATCH(request: Request, { params }: Params) {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        group: {
+          select: {
+            id: true,
+            name: true,
+            service: true,
+            isActive: true,
+          },
+        },
       },
     });
 
@@ -137,7 +178,7 @@ export async function PATCH(request: Request, { params }: Params) {
     ) {
       return NextResponse.json(
         { error: "Ce nom utilisateur existe déjà." },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
@@ -149,13 +190,13 @@ export async function PATCH(request: Request, { params }: Params) {
     ) {
       return NextResponse.json(
         { error: "Personnel introuvable." },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
     return NextResponse.json(
       { error: "Impossible de mettre à jour le personnel." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -163,7 +204,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
+  if (!session || !canAccessAdminWorkspace(session.role)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -172,7 +213,7 @@ export async function DELETE(_request: Request, { params }: Params) {
   if (session.userId === id) {
     return NextResponse.json(
       { error: "Vous ne pouvez pas supprimer votre propre compte." },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -188,7 +229,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     ) {
       return NextResponse.json(
         { error: "Personnel introuvable." },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -197,7 +238,7 @@ export async function DELETE(_request: Request, { params }: Params) {
         error:
           "Suppression impossible. Ce personnel est peut-être déjà lié à des rapports ou évaluations.",
       },
-      { status: 409 },
+      { status: 409 }
     );
   }
 }

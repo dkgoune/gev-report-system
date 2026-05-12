@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "react-day-picker/style.css";
+@import "react-datetime/css/react-datetime.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -97,6 +99,34 @@ h3 {
   letter-spacing: -0.02em;
 }
 
+.analytics-day-picker {
+  --rdp-accent-color: var(--primary);
+  --rdp-day-height: 2.2rem;
+  --rdp-day-width: 2.2rem;
+  --rdp-range_middle-background-color: color-mix(
+    in srgb,
+    var(--primary) 12%,
+    white
+  );
+  --rdp-range_start-background: var(--primary);
+  --rdp-range_end-background: var(--primary);
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.analytics-day-picker .rdp-months {
+  justify-content: flex-start;
+}
+
+.analytics-day-picker .rdp-caption_label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.analytics-day-picker .rdp-day_button {
+  border-radius: 0;
+}
+
 .dark {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
@@ -147,5 +177,81 @@ h3 {
 
   html {
     @apply font-mono;
+  }
+}
+
+@layer components {
+  .datetime-field .rdt {
+    position: relative;
+    width: 100%;
+  }
+
+  .datetime-field .rdtPicker {
+    margin-top: 0.5rem;
+    right: 0;
+    z-index: 30;
+    width: min(19rem, calc(100vw - 2rem));
+    max-width: 100%;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--border) 100%, transparent);
+    background: white;
+    box-shadow: 0 18px 40px rgb(15 23 42 / 0.14);
+    padding: 0.75rem;
+  }
+
+  .datetime-field .rdtPicker table {
+    width: 100%;
+  }
+
+  .datetime-field .rdtPicker th,
+  .datetime-field .rdtPicker td {
+    border-radius: 0.6rem;
+  }
+
+  .datetime-field .rdtPicker td,
+  .datetime-field .rdtPicker th {
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
+
+  .datetime-field .rdtPicker td.rdtActive,
+  .datetime-field .rdtPicker td.rdtActive:hover {
+    background: #0f766e;
+    color: white;
+  }
+
+  .datetime-field .rdtPicker td:hover,
+  .datetime-field .rdtPicker th:hover,
+  .datetime-field .rdtPicker .rdtBtn:hover {
+    background: #f1f5f9;
+  }
+
+  .datetime-field .rdtPicker .rdtSwitch,
+  .datetime-field .rdtPicker .dow {
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .datetime-field .rdtCounters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .datetime-field .rdtCounter {
+    border-radius: 0.9rem;
+    background: #f8fafc;
+    padding: 0.5rem 0.25rem;
+  }
+
+  .datetime-field .rdtCounter .rdtBtn:hover {
+    background: #e2e8f0;
+  }
+
+  .datetime-field .rdtCounterSeparator {
+    display: none;
   }
 }

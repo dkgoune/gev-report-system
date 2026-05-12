@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EvaluationForm } from "./evaluation-form";
@@ -26,13 +26,9 @@ export function EvaluationManager({
   const [criteria] = useState(initialCriteria);
   const [users] = useState(initialUsers);
   const [formState, setFormState] = useState<EvaluationFormState>(
-    defaultEvaluationFormState,
+    defaultEvaluationFormState
   );
   const [submitting, setSubmitting] = useState(false);
-
-  const selectedCriterion = useMemo(() => {
-    return criteria.find((criterion) => criterion.id === formState.criteriaId);
-  }, [criteria, formState.criteriaId]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,6 +42,8 @@ export function EvaluationManager({
 
     const payload = (await response.json().catch(() => null)) as {
       error?: string;
+      message?: string;
+      skipped?: boolean;
     } | null;
 
     if (!response.ok) {
@@ -54,13 +52,13 @@ export function EvaluationManager({
       return;
     }
 
-    toast.success("Évaluation enregistrée.");
+    toast.success(payload?.message || "Évaluation enregistrée.");
     setFormState(defaultEvaluationFormState);
     setSubmitting(false);
   }
 
   function onChange(field: keyof EvaluationFormState, value: string) {
-    setFormState((current) => ({
+    setFormState(current => ({
       ...current,
       [field]: value,
     }));
@@ -89,7 +87,6 @@ export function EvaluationManager({
       <EvaluationForm
         criteria={criteria}
         formState={formState}
-        selectedCriterion={selectedCriterion}
         submitting={submitting}
         users={users}
         onSubmit={onSubmit}

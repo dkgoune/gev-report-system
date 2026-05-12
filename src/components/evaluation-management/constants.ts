@@ -15,12 +15,11 @@ export const defaultEvaluationFormState: EvaluationFormState = {
   userId: "",
   criteriaId: "",
   evaluationDate: getTodayDateInputValue(),
-  weightOverride: "",
   notes: "",
 };
 
 export function buildCriterionLabel(criterion: EvaluationCriterionOption) {
-  return `${criterion.name} (${impactLabel(criterion.impact)}, ${criterion.defaultWeight})`;
+  return `${criterion.name} (${impactLabel(criterion.impact)})`;
 }
 
 export function buildUserLabel(user: EvaluationUserOption) {

@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { roleOptions } from "./constants";
-import type { Role, UserFormState } from "./types";
+import { serviceLabel } from "@/lib/services";
+import type { GroupOption, Role, UserFormState } from "./types";
 
 type UserEditorFormProps = {
   mode: "create" | "update";
@@ -13,6 +15,7 @@ type UserEditorFormProps = {
   userId?: string;
   title: string;
   description: string;
+  groups: GroupOption[];
 };
 
 export function UserEditorForm({
@@ -21,7 +24,9 @@ export function UserEditorForm({
   userId,
   title,
   description,
+  groups,
 }: UserEditorFormProps) {
+  const router = useRouter();
   const [formState, setFormState] = useState<UserFormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,6 +43,7 @@ export function UserEditorForm({
             fullName: formState.fullName,
             username: formState.username,
             role: formState.role,
+            groupId: formState.groupId || null,
             phone: formState.phone || null,
             isActive: formState.isActive,
           };
@@ -57,7 +63,7 @@ export function UserEditorForm({
         payload?.error ||
           (mode === "create"
             ? "Impossible de créer le personnel."
-            : "Impossible de mettre à jour le personnel."),
+            : "Impossible de mettre à jour le personnel.")
       );
       setSubmitting(false);
       return;
@@ -66,13 +72,12 @@ export function UserEditorForm({
     toast.success(
       mode === "create"
         ? "Personnel créé avec succès."
-        : "Personnel mis à jour.",
+        : "Personnel mis à jour."
     );
 
-    setFormState(initialState);
     setSubmitting(false);
-    // router.push("/users");
-    // router.refresh();
+    router.push("/users");
+    router.refresh();
   }
 
   return (
@@ -94,8 +99,8 @@ export function UserEditorForm({
             <span className="font-medium text-slate-700">Nom complet</span>
             <input
               value={formState.fullName}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   fullName: event.target.value,
                 }))
@@ -109,8 +114,8 @@ export function UserEditorForm({
             <span className="font-medium text-slate-700">Nom utilisateur</span>
             <input
               value={formState.username}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   username: event.target.value,
                 }))
@@ -124,15 +129,15 @@ export function UserEditorForm({
             <span className="font-medium text-slate-700">Rôle</span>
             <select
               value={formState.role}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   role: event.target.value as Role,
                 }))
               }
               className="w-full rounded-md border border-slate-300 px-3 py-2"
             >
-              {roleOptions.map((role) => (
+              {roleOptions.map(role => (
                 <option key={role.value} value={role.value}>
                   {role.label}
                 </option>
@@ -141,11 +146,39 @@ export function UserEditorForm({
           </label>
 
           <label className="space-y-1 text-sm">
+            <span className="font-medium text-slate-700">Groupe</span>
+            <select
+              value={formState.groupId}
+              onChange={event =>
+                setFormState(current => ({
+                  ...current,
+                  groupId: event.target.value,
+                }))
+              }
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+            >
+              <option value="">
+                {formState.role === "admin"
+                  ? "Aucun groupe"
+                  : "Choisir un groupe"}
+              </option>
+              {groups.map(group => (
+                <option key={group.id} value={group.id}>
+                  {group.name} ({serviceLabel(group.service)})
+                </option>
+              ))}
+            </select>
+            <span className="block text-xs text-slate-500">
+              Le groupe est obligatoire pour les rôles non administrateurs.
+            </span>
+          </label>
+
+          <label className="space-y-1 text-sm">
             <span className="font-medium text-slate-700">Téléphone</span>
             <input
               value={formState.phone}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   phone: event.target.value,
                 }))
@@ -160,8 +193,8 @@ export function UserEditorForm({
               <input
                 type="password"
                 value={formState.password}
-                onChange={(event) =>
-                  setFormState((current) => ({
+                onChange={event =>
+                  setFormState(current => ({
                     ...current,
                     password: event.target.value,
                   }))
@@ -177,8 +210,8 @@ export function UserEditorForm({
             <input
               type="checkbox"
               checked={formState.isActive}
-              onChange={(event) =>
-                setFormState((current) => ({
+              onChange={event =>
+                setFormState(current => ({
                   ...current,
                   isActive: event.target.checked,
                 }))

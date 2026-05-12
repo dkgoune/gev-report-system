@@ -134,6 +134,23 @@ export function CriteriaList({
           row.original.defaultWeight,
       },
       {
+        id: "maxDaily",
+        accessorFn: (criterion: CriterionItem) =>
+          criterion.maxDaily === null ? "Illimité" : String(criterion.maxDaily),
+        header: ({ column }: HeaderContext<CriterionItem, unknown>) => (
+          <button
+            type="button"
+            className="flex items-center gap-1 font-semibold"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Max / jour
+            <ArrowUpDown className="size-4" />
+          </button>
+        ),
+        cell: ({ row }: CellContext<CriterionItem, unknown>) =>
+          row.original.maxDaily === null ? "Illimité" : row.original.maxDaily,
+      },
+      {
         id: "status",
         accessorFn: (criterion: CriterionItem) =>
           criterion.isActive ? "Actif" : "Inactif",
@@ -204,7 +221,7 @@ export function CriteriaList({
         ),
       },
     ],
-    [onToggleActive, router, updatingId],
+    [onToggleActive, router, updatingId]
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -235,7 +252,7 @@ export function CriteriaList({
     totalRows === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
   const endRow = Math.min(
     (pagination.pageIndex + 1) * pagination.pageSize,
-    totalRows,
+    totalRows
   );
 
   return (
@@ -265,8 +282,8 @@ export function CriteriaList({
             <span className="font-medium text-slate-700">Recherche</span>
             <input
               value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Rechercher par nom, impact ou poids"
+              onChange={event => onSearchChange(event.target.value)}
+              placeholder="Rechercher par nom, impact, poids ou limite"
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
@@ -277,7 +294,7 @@ export function CriteriaList({
               value={
                 (table.getColumn("impact")?.getFilterValue() as string) ?? "all"
               }
-              onValueChange={(value) =>
+              onValueChange={value =>
                 table
                   .getColumn("impact")
                   ?.setFilterValue(value === "all" ? undefined : value)
@@ -288,7 +305,7 @@ export function CriteriaList({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les impacts</SelectItem>
-                {impactOptions.map((option) => (
+                {impactOptions.map(option => (
                   <SelectItem key={option.value} value={option.label}>
                     {option.label}
                   </SelectItem>
@@ -303,7 +320,7 @@ export function CriteriaList({
               value={
                 (table.getColumn("status")?.getFilterValue() as string) ?? "all"
               }
-              onValueChange={(value) =>
+              onValueChange={value =>
                 table
                   .getColumn("status")
                   ?.setFilterValue(value === "all" ? undefined : value)
@@ -327,9 +344,9 @@ export function CriteriaList({
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map(headerGroup => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
+                {headerGroup.headers.map(header => (
                   <TableHead
                     key={header.id}
                     className="px-4 py-3 font-medium whitespace-nowrap"
@@ -338,7 +355,7 @@ export function CriteriaList({
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext(),
+                          header.getContext()
                         )}
                   </TableHead>
                 ))}
@@ -357,9 +374,9 @@ export function CriteriaList({
               </TableRow>
             ) : null}
 
-            {table.getRowModel().rows.map((row) => (
+            {table.getRowModel().rows.map(row => (
               <TableRow key={row.id} className="align-top">
-                {row.getVisibleCells().map((cell) => (
+                {row.getVisibleCells().map(cell => (
                   <TableCell
                     key={cell.id}
                     className="px-4 py-3 text-slate-700 whitespace-nowrap"
@@ -380,13 +397,13 @@ export function CriteriaList({
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <Select
               value={String(pagination.pageSize)}
-              onValueChange={(value) => table.setPageSize(Number(value))}
+              onValueChange={value => table.setPageSize(Number(value))}
             >
               <SelectTrigger className="w-full rounded-md text-sm md:w-40">
                 <SelectValue placeholder="Taille de page" />
               </SelectTrigger>
               <SelectContent align="end">
-                {[5, 8, 10, 20].map((size) => (
+                {[5, 8, 10, 20].map(size => (
                   <SelectItem key={size} value={String(size)}>
                     {size} par page
                   </SelectItem>

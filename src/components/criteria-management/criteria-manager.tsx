@@ -42,11 +42,14 @@ export function CriteriaManager({ initialCriteria }: CriteriaManagerProps) {
       return criteria;
     }
 
-    return criteria.filter((criterion) => {
+    return criteria.filter(criterion => {
       return (
         criterion.name.toLowerCase().includes(term) ||
         impactLabel(criterion.impact).toLowerCase().includes(term) ||
-        criterion.defaultWeight.toLowerCase().includes(term)
+        criterion.defaultWeight.toLowerCase().includes(term) ||
+        String(criterion.maxDaily ?? "illimite")
+          .toLowerCase()
+          .includes(term)
       );
     });
   }, [criteria, search]);
@@ -71,7 +74,7 @@ export function CriteriaManager({ initialCriteria }: CriteriaManagerProps) {
     }
 
     toast.success(
-      criterion.isActive ? "Critère désactivé." : "Critère activé.",
+      criterion.isActive ? "Critère désactivé." : "Critère activé."
     );
     setUpdatingId(null);
     setLoading(true);

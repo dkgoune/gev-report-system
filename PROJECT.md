@@ -20,7 +20,7 @@ A simple web application that replaces the agency's paper forms and manual count
 **After (Digital):**
 
 - Leaders fill the same forms on a computer, tablet, or phone
-- Agents click a button each time they sign a slip — the system counts automatically
+- Leaders or designated operators record each slip signature digitally — the system counts automatically
 - Staff scores are calculated automatically based on rules the admin defines
 - Old reports are found by typing a date or keyword
 
@@ -32,7 +32,7 @@ A simple web application that replaces the agency's paper forms and manual count
 Leaders record what happened during the day: who was present or absent, problems encountered, missing parcels, wrong destinations, delayed items, vehicle departures, and any other observations. Each service (Envoi, Piste, Retrait) has its own forms matching their existing paper templates.
 
 **2. Slip Signature Counting**
-Instead of drawing strokes on paper, staff members simply click a button each time they sign a slip. The system keeps the count. At any moment, anyone can see how many slips each agent has signed today or this month.
+Instead of drawing strokes on paper, leaders or designated operators record each signed slip in the system. The platform keeps the count automatically. At any moment, admins and service leaders can see how many slips each agent has signed today or this month.
 
 **3. Personnel Evaluation**
 The admin creates evaluation criteria (for example: "Absence = -5 points" or "More than 10 signatures in a day = +3 points"). Leaders apply these criteria to staff members throughout the month. The system automatically calculates a total score for each person, making it clear who deserves rewards and who needs improvement.
@@ -53,7 +53,7 @@ It is a **reporting tool only**. Staff type information freely without needing t
 
 - **Saves time:** No manual counting, no paper shuffling
 - **Reduces errors:** Automatic calculations, no lost papers
-- **Increases transparency:** Anyone can see reports and scores instantly
+- **Increases transparency:** Authorized managers can see reports and scores instantly
 - **Enables fairness:** Evaluation is based on recorded facts, not memory
 - **Makes history searchable:** Find any past report in seconds
 
@@ -61,12 +61,12 @@ It is a **reporting tool only**. Staff type information freely without needing t
 
 ### Who Uses It
 
-| Person                                     | What They Do                                                                    |
-| :----------------------------------------- | :------------------------------------------------------------------------------ |
-| **Admin**                                  | Manages user accounts, creates evaluation criteria, views everything            |
-| **Service Leader** (Envoi, Piste, Retrait) | Fills daily reports for their service, records slip signatures, evaluates staff |
-| **Agent**                                  | Views their own signature count and evaluation score                            |
-| **Convoyeur**                              | Views their attendance history                                                  |
+| Person                                     | What They Do                                                                                   |
+| :----------------------------------------- | :--------------------------------------------------------------------------------------------- |
+| **Admin**                                  | Manages user accounts, creates evaluation criteria, views everything                           |
+| **Service Leader** (Envoi, Piste, Retrait) | Fills daily reports for their service, records slip signatures, evaluates staff, views history |
+
+Agents and convoyeurs are tracked in the system for reporting, signature logs, and evaluations, but they do not access the platform directly.
 
 ## 1. EXECUTIVE SUMMARY
 
@@ -93,14 +93,16 @@ A lightweight digital logbook that replaces paper-based daily reporting and slip
 
 ## 3. USER ROLES & PERMISSIONS
 
+Only `admin` and service leader accounts access the platform directly. `agent` and `convoyeur` remain valid user roles in the database for reporting and evaluation records, but they do not have a dedicated application interface.
+
 | Role (Code)      | Role (French UI)     | Access Level                                                                                                                               |
 | :--------------- | :------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
 | `admin`          | Administrateur       | Full system access. Manage users, manage evaluation criteria, view all reports and summaries.                                              |
 | `leader_envoi`   | Chef Service Envoi   | Submit daily general report (Envoi), submit all Envoi-specific incident reports, record slip signatures, evaluate personnel, view history. |
 | `leader_piste`   | Chef Service Piste   | Submit daily general report (Piste), submit Piste-specific reports, evaluate personnel, view history.                                      |
 | `leader_retrait` | Chef Service Retrait | Submit daily general report (Retrait), submit Retrait-specific reports, evaluate personnel, view history.                                  |
-| `agent`          | Agent                | View own signature count and personal evaluation summary. Minimal interface.                                                               |
-| `convoyeur`      | Convoyeur            | View own attendance history. No reporting capability.                                                                                      |
+| `agent`          | Agent                | Referenced in signatures and evaluation records. No direct platform access.                                                                |
+| `convoyeur`      | Convoyeur            | Referenced in personnel and reporting data. No direct platform access.                                                                     |
 
 ---
 

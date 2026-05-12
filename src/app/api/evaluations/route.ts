@@ -1,24 +1,17 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
+import type { Role } from "@/generated/prisma/enums";
 import { canAccessPlatform } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { buildScopedUserWhere, listScopedUsers } from "@/lib/user-scope";
 
-function normalizeDecimal(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  const parsed = Number(trimmed);
-
-  if (!Number.isFinite(parsed)) {
-    return null;
-  }
-
-  return trimmed;
-}
+const EVALUATION_TARGET_ROLES: Role[] = [
+  "agent",
+  "convoyer",
+  "leader",
+  "subleader",
+];
 
 function normalizeDate(value: string) {
   const trimmed = value.trim();
@@ -108,26 +101,7 @@ export async function GET(request: Request) {
 
   const [totalItems, users, criteria] = await Promise.all([
     prisma.personnelEvaluation.count({ where }),
-    prisma.user.findMany({
-      where: {
-        isActive: true,
-        role: {
-          in: [
-            "agent",
-            "convoyeur",
-            "leader_envoi",
-            "leader_piste",
-            "leader_retrait",
-          ],
-        },
-      },
-      orderBy: { fullName: "asc" },
-      select: {
-        id: true,
-        fullName: true,
-        role: true,
-      },
-    }),
+    listScopedUsers(session, EVALUATION_TARGET_ROLES),
     prisma.criterion.findMany({
       where: { isActive: true },
       orderBy: [{ impact: "asc" }, { name: "asc" }],
@@ -183,11 +157,11 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     users,
-    criteria: criteria.map((criterion) => ({
+    criteria: criteria.map(criterion => ({
       ...criterion,
       defaultWeight: criterion.defaultWeight.toString(),
     })),
-    evaluations: evaluations.map((evaluation) => ({
+    evaluations: evaluations.map(evaluation => ({
       id: evaluation.id,
       evaluationDate: evaluation.evaluationDate.toISOString(),
       weightOverride: evaluation.weightOverride?.toString() ?? null,
@@ -234,7 +208,6 @@ export async function POST(request: Request) {
     const userId = body.userId?.trim();
     const criteriaId = body.criteriaId?.trim();
     const evaluationDate = body.evaluationDate?.trim();
-    const weightOverride = body.weightOverride?.trim() ?? "";
     const notes = body.notes?.trim() || null;
 
     if (!userId || !criteriaId || !evaluationDate) {
@@ -243,7 +216,7 @@ export async function POST(request: Request) {
           error:
             "Le personnel, le critère et la date d'évaluation sont obligatoires.",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -252,24 +225,26 @@ export async function POST(request: Request) {
     if (!parsedDate) {
       return NextResponse.json(
         { error: "Date d'évaluation invalide." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
-    const normalizedWeight = weightOverride
-      ? normalizeDecimal(weightOverride)
-      : null;
-
-    if (weightOverride && !normalizedWeight) {
+    if (body.weightOverride?.trim()) {
       return NextResponse.json(
-        { error: "Le poids personnalisé doit être un nombre valide." },
-        { status: 400 },
+        {
+          error:
+            "Le poids personnalise n'est plus disponible lors de la saisie d'une evaluation.",
+        },
+        { status: 400 }
       );
     }
 
     const [user, criterion] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
+      prisma.user.findFirst({
+        where: {
+          ...buildScopedUserWhere(session, EVALUATION_TARGET_ROLES),
+          id: userId,
+        },
         select: {
           id: true,
           isActive: true,
@@ -281,6 +256,7 @@ export async function POST(request: Request) {
         select: {
           id: true,
           isActive: true,
+          maxDaily: true,
         },
       }),
     ]);
@@ -288,22 +264,44 @@ export async function POST(request: Request) {
     if (!user || !user.isActive) {
       return NextResponse.json(
         { error: "Le personnel sélectionné est introuvable ou inactif." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     if (user.role === "admin") {
       return NextResponse.json(
         { error: "Les administrateurs ne peuvent pas être évalués." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     if (!criterion || !criterion.isActive) {
       return NextResponse.json(
         { error: "Le critère sélectionné est introuvable ou inactif." },
-        { status: 400 },
+        { status: 400 }
       );
+    }
+
+    if (criterion.maxDaily !== null) {
+      const sameDayCount = await prisma.personnelEvaluation.count({
+        where: {
+          userId,
+          criteriaId,
+          evaluationDate: {
+            gte: new Date(`${evaluationDate}T00:00:00.000Z`),
+            lte: new Date(`${evaluationDate}T23:59:59.999Z`),
+          },
+        },
+      });
+
+      if (sameDayCount >= criterion.maxDaily) {
+        return NextResponse.json({
+          ok: true,
+          skipped: true,
+          message:
+            "La limite quotidienne de ce critère est déjà atteinte pour ce personnel. L'évaluation a été ignorée.",
+        });
+      }
     }
 
     const evaluation = await prisma.personnelEvaluation.create({
@@ -311,7 +309,7 @@ export async function POST(request: Request) {
         userId,
         criteriaId,
         evaluationDate: parsedDate,
-        weightOverride: normalizedWeight,
+        weightOverride: null,
         notes,
         recordedById: session.userId,
       },
@@ -351,6 +349,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: true,
+        skipped: false,
+        message: "Évaluation enregistrée.",
         evaluation: {
           id: evaluation.id,
           evaluationDate: evaluation.evaluationDate.toISOString(),
@@ -365,12 +365,12 @@ export async function POST(request: Request) {
           recordedBy: evaluation.recordedBy,
         },
       },
-      { status: 201 },
+      { status: 201 }
     );
   } catch {
     return NextResponse.json(
       { error: "Impossible d'enregistrer l'évaluation." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

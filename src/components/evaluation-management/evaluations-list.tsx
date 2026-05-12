@@ -77,7 +77,7 @@ export function EvaluationsList({
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
               <option value="">Tous les critères</option>
-              {criteriaOptions.map((criterion) => (
+              {criteriaOptions.map(criterion => (
                 <option key={criterion.id} value={criterion.id}>
                   {criterion.name} ({impactLabel(criterion.impact)})
                 </option>
@@ -112,7 +112,7 @@ export function EvaluationsList({
               defaultValue={String(filters.pageSize)}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              {[10, 20, 50].map((size) => (
+              {[10, 20, 50].map(size => (
                 <option key={size} value={size}>
                   {size}
                 </option>
@@ -171,7 +171,7 @@ export function EvaluationsList({
               </TableRow>
             ) : null}
 
-            {evaluations.map((evaluation) => {
+            {evaluations.map(evaluation => {
               const appliedWeight = getEffectiveWeight(evaluation);
               const isOverride = evaluation.weightOverride !== null;
               const impactClasses =

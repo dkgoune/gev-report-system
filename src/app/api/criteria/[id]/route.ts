@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Impact } from "@/generated/prisma/enums";
-import { canAccessPlatform } from "@/lib/authz";
+import { canAccessAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -10,12 +10,30 @@ function isAllowedImpact(value: string): value is Impact {
   return ALLOWED_IMPACTS.includes(value as Impact);
 }
 
+function parseMaxDaily(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return { value: null } as const;
+  }
+
+  const parsed = Number(trimmed);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return {
+      error: "Le maximum quotidien doit être un entier supérieur ou égal à 1.",
+    } as const;
+  }
+
+  return { value: parsed } as const;
+}
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
+  if (!session || !canAccessAdminWorkspace(session.role)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -26,6 +44,7 @@ export async function PATCH(request: Request, { params }: Params) {
       name: string;
       impact: string;
       defaultWeight: string;
+      maxDaily: string;
       isActive: boolean;
     }>;
 
@@ -33,6 +52,7 @@ export async function PATCH(request: Request, { params }: Params) {
       name?: string;
       impact?: Impact;
       defaultWeight?: string;
+      maxDaily?: number | null;
       isActive?: boolean;
     } = {};
 
@@ -41,7 +61,7 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!name) {
         return NextResponse.json(
           { error: "Le nom du critère ne peut pas être vide." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       payload.name = name;
@@ -52,7 +72,7 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!isAllowedImpact(impact)) {
         return NextResponse.json(
           { error: "Impact invalide." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       payload.impact = impact;
@@ -65,11 +85,21 @@ export async function PATCH(request: Request, { params }: Params) {
       if (!defaultWeight || !Number.isFinite(parsedWeight)) {
         return NextResponse.json(
           { error: "Le poids par défaut doit être un nombre valide." },
-          { status: 400 },
+          { status: 400 }
         );
       }
 
       payload.defaultWeight = defaultWeight;
+    }
+
+    if (typeof body.maxDaily === "string") {
+      const maxDaily = parseMaxDaily(body.maxDaily);
+
+      if ("error" in maxDaily) {
+        return NextResponse.json({ error: maxDaily.error }, { status: 400 });
+      }
+
+      payload.maxDaily = maxDaily.value;
     }
 
     if (typeof body.isActive === "boolean") {
@@ -79,7 +109,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (Object.keys(payload).length === 0) {
       return NextResponse.json(
         { error: "Aucune modification détectée." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -91,6 +121,7 @@ export async function PATCH(request: Request, { params }: Params) {
         name: true,
         impact: true,
         defaultWeight: true,
+        maxDaily: true,
         isActive: true,
         createdAt: true,
         createdById: true,
@@ -114,13 +145,13 @@ export async function PATCH(request: Request, { params }: Params) {
     ) {
       return NextResponse.json(
         { error: "Critère introuvable." },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
     return NextResponse.json(
       { error: "Impossible de mettre à jour le critère." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

@@ -1,0 +1,39 @@
+import { redirect } from "next/navigation";
+import { SignatureForm } from "@/components/signature-management/signature-form";
+import type { SignatureFormState } from "@/components/signature-management/types";
+import {
+  getDefaultSignatureFormState,
+  getSignatureLogFormOptions,
+} from "@/lib/signature-logs";
+import { getServerSession } from "@/lib/session";
+
+export default async function NewSignaturePage() {
+  const session = await getServerSession();
+
+  if (!session) {
+    redirect("/auth/login");
+  }
+
+  const agents = await getSignatureLogFormOptions(session);
+  const initialState = getDefaultSignatureFormState() as SignatureFormState;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">
+          Ajouter une signature de bordereau
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Sélectionnez le signataire, saisissez le numéro de bordereau, la date
+          de signature si elle est connue et, si besoin, l'arrivée du bus.
+        </p>
+      </div>
+
+      <SignatureForm
+        signers={agents}
+        initialState={initialState}
+        mode="create"
+      />
+    </div>
+  );
+}

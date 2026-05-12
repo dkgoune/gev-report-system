@@ -10,7 +10,7 @@ export function hashPassword(password: string): string {
 
 export function verifyPassword(
   password: string,
-  storedPassword: string,
+  storedPassword: string
 ): boolean {
   const parts = storedPassword.split("$");
 

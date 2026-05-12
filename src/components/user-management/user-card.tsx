@@ -58,7 +58,8 @@ export function UserCard({
             <div>
               <p className="font-semibold text-slate-900">{user.fullName}</p>
               <p className="text-sm text-slate-600">
-                @{user.username} • {roleLabel(user.role)} • {user.isActive ? "Actif" : "Inactif"}
+                @{user.username} • {roleLabel(user.role)} •{" "}
+                {user.isActive ? "Actif" : "Inactif"}
               </p>
               {user.phone ? (
                 <p className="text-sm text-slate-500">Tél: {user.phone}</p>
@@ -112,7 +113,7 @@ export function UserCard({
             <span className="font-medium text-slate-700">Nom complet</span>
             <input
               value={editState.fullName}
-              onChange={(event) =>
+              onChange={event =>
                 onEditStateChange({
                   ...editState,
                   fullName: event.target.value,
@@ -126,7 +127,7 @@ export function UserCard({
             <span className="font-medium text-slate-700">Nom utilisateur</span>
             <input
               value={editState.username}
-              onChange={(event) =>
+              onChange={event =>
                 onEditStateChange({
                   ...editState,
                   username: event.target.value,
@@ -140,7 +141,7 @@ export function UserCard({
             <span className="font-medium text-slate-700">Rôle</span>
             <select
               value={editState.role}
-              onChange={(event) =>
+              onChange={event =>
                 onEditStateChange({
                   ...editState,
                   role: event.target.value as Role,
@@ -148,7 +149,7 @@ export function UserCard({
               }
               className="w-full rounded-md border border-slate-300 px-3 py-2"
             >
-              {roleOptions.map((role) => (
+              {roleOptions.map(role => (
                 <option key={role.value} value={role.value}>
                   {role.label}
                 </option>
@@ -160,7 +161,7 @@ export function UserCard({
             <span className="font-medium text-slate-700">Téléphone</span>
             <input
               value={editState.phone}
-              onChange={(event) =>
+              onChange={event =>
                 onEditStateChange({
                   ...editState,
                   phone: event.target.value,
@@ -174,7 +175,7 @@ export function UserCard({
             <input
               type="checkbox"
               checked={editState.isActive}
-              onChange={(event) =>
+              onChange={event =>
                 onEditStateChange({
                   ...editState,
                   isActive: event.target.checked,
@@ -188,7 +189,11 @@ export function UserCard({
             <Button onClick={() => void onSave(user.id)} disabled={saving}>
               {saving ? "Enregistrement..." : "Enregistrer"}
             </Button>
-            <Button variant="outline" onClick={onCancelEditing} disabled={saving}>
+            <Button
+              variant="outline"
+              onClick={onCancelEditing}
+              disabled={saving}
+            >
               Annuler
             </Button>
           </div>

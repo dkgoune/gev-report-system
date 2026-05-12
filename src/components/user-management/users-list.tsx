@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/select";
 import { roleLabel, roleOptions } from "./constants";
 import type { UserItem } from "./types";
+import { serviceLabel } from "@/lib/services";
 
 type UsersListProps = {
   users: UserItem[];
@@ -85,7 +86,7 @@ export function UsersList({
   ]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pendingDeleteUser, setPendingDeleteUser] = useState<UserItem | null>(
-    null,
+    null
   );
 
   const columns = useMemo<ColumnDef<UserItem>[]>(
@@ -143,6 +144,27 @@ export function UsersList({
           </button>
         ),
         filterFn: "equalsString",
+      },
+      {
+        id: "group",
+        accessorFn: (user: UserItem) => user.group?.name || "Aucun groupe",
+        header: "Groupe",
+        cell: ({ row }: CellContext<UserItem, unknown>) => {
+          if (!row.original.group) {
+            return <span className="text-slate-500">Aucun groupe</span>;
+          }
+
+          return (
+            <div>
+              <p className="font-medium text-slate-900">
+                {row.original.group.name}
+              </p>
+              <p className="text-xs text-slate-500">
+                {serviceLabel(row.original.group.service)}
+              </p>
+            </div>
+          );
+        },
       },
       {
         id: "phone",
@@ -229,7 +251,7 @@ export function UsersList({
         ),
       },
     ],
-    [deletingId, isAdmin, router],
+    [deletingId, isAdmin, router]
   );
 
   // TanStack Table manages imperative table helpers internally; this lint rule is a compiler advisory, not a runtime issue here.
@@ -261,7 +283,7 @@ export function UsersList({
     totalRows === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
   const endRow = Math.min(
     (pagination.pageIndex + 1) * pagination.pageSize,
-    totalRows,
+    totalRows
   );
 
   return (
@@ -291,8 +313,8 @@ export function UsersList({
             <span className="font-medium text-slate-700">Recherche</span>
             <input
               value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Rechercher par nom, username ou rôle"
+              onChange={event => onSearchChange(event.target.value)}
+              placeholder="Rechercher par nom, username, rôle ou groupe"
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
@@ -303,7 +325,7 @@ export function UsersList({
               value={
                 (table.getColumn("role")?.getFilterValue() as string) ?? "all"
               }
-              onValueChange={(value) =>
+              onValueChange={value =>
                 table
                   .getColumn("role")
                   ?.setFilterValue(value === "all" ? undefined : value)
@@ -314,7 +336,7 @@ export function UsersList({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les rôles</SelectItem>
-                {roleOptions.map((role) => (
+                {roleOptions.map(role => (
                   <SelectItem key={role.value} value={role.label}>
                     {role.label}
                   </SelectItem>
@@ -329,7 +351,7 @@ export function UsersList({
               value={
                 (table.getColumn("status")?.getFilterValue() as string) ?? "all"
               }
-              onValueChange={(value) =>
+              onValueChange={value =>
                 table
                   .getColumn("status")
                   ?.setFilterValue(value === "all" ? undefined : value)
@@ -353,9 +375,9 @@ export function UsersList({
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map(headerGroup => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
+                {headerGroup.headers.map(header => (
                   <TableHead
                     key={header.id}
                     className="px-4 py-3 font-medium whitespace-nowrap"
@@ -364,7 +386,7 @@ export function UsersList({
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext(),
+                          header.getContext()
                         )}
                   </TableHead>
                 ))}
@@ -383,9 +405,9 @@ export function UsersList({
               </TableRow>
             ) : null}
 
-            {table.getRowModel().rows.map((row) => (
+            {table.getRowModel().rows.map(row => (
               <TableRow key={row.id} className="align-top">
-                {row.getVisibleCells().map((cell) => (
+                {row.getVisibleCells().map(cell => (
                   <TableCell
                     key={cell.id}
                     className="px-4 py-3 text-slate-700 whitespace-nowrap"
@@ -406,13 +428,13 @@ export function UsersList({
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <Select
               value={String(pagination.pageSize)}
-              onValueChange={(value) => table.setPageSize(Number(value))}
+              onValueChange={value => table.setPageSize(Number(value))}
             >
               <SelectTrigger className="w-full rounded-md text-sm md:w-40">
                 <SelectValue placeholder="Taille de page" />
               </SelectTrigger>
               <SelectContent align="end">
-                {[5, 8, 10, 20].map((size) => (
+                {[5, 8, 10, 20].map(size => (
                   <SelectItem key={size} value={String(size)}>
                     {size} par page
                   </SelectItem>
@@ -448,7 +470,7 @@ export function UsersList({
 
       <AlertDialog
         open={Boolean(pendingDeleteUser)}
-        onOpenChange={(open) => {
+        onOpenChange={open => {
           if (!open) {
             setPendingDeleteUser(null);
           }
