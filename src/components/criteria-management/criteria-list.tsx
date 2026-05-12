@@ -276,7 +276,7 @@ export function CriteriaList({
         </Button>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="border border-slate-200 bg-slate-50 p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
@@ -284,7 +284,7 @@ export function CriteriaList({
               value={search}
               onChange={event => onSearchChange(event.target.value)}
               placeholder="Rechercher par nom, impact, poids ou limite"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -300,7 +300,7 @@ export function CriteriaList({
                   ?.setFilterValue(value === "all" ? undefined : value)
               }
             >
-              <SelectTrigger className="w-full rounded-md bg-white text-sm">
+              <SelectTrigger className="w-full bg-white text-sm">
                 <SelectValue placeholder="Tous les impacts" />
               </SelectTrigger>
               <SelectContent>
@@ -326,7 +326,7 @@ export function CriteriaList({
                   ?.setFilterValue(value === "all" ? undefined : value)
               }
             >
-              <SelectTrigger className="w-full rounded-md bg-white text-sm">
+              <SelectTrigger className="w-full bg-white text-sm">
                 <SelectValue placeholder="Tous les statuts" />
               </SelectTrigger>
               <SelectContent>
@@ -341,7 +341,7 @@ export function CriteriaList({
 
       {loading ? <p className="text-sm text-slate-600">Chargement...</p> : null}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             {table.getHeaderGroups().map(headerGroup => (
@@ -399,7 +399,7 @@ export function CriteriaList({
               value={String(pagination.pageSize)}
               onValueChange={value => table.setPageSize(Number(value))}
             >
-              <SelectTrigger className="w-full rounded-md text-sm md:w-40">
+              <SelectTrigger className="w-full text-sm md:w-40">
                 <SelectValue placeholder="Taille de page" />
               </SelectTrigger>
               <SelectContent align="end">

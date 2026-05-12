@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { canAccessPlatform, canViewReportHistory } from "@/lib/authz";
+import { canMarkReportsAsRead, canViewReportHistory } from "@/lib/authz";
 import { getReportById, markReportAsRead } from "@/lib/report-records";
 import { getReportType, type ReportTypeSlug } from "@/lib/report-types";
 import { getServerSession } from "@/lib/session";
@@ -43,7 +43,7 @@ export async function PATCH(
 ) {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
+  if (!session || !canMarkReportsAsRead(session.role)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 

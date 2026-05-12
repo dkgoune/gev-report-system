@@ -21,7 +21,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-slate-50 to-slate-100 px-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
+      <div className="w-full max-w-md bg-white shadow-lg p-8">
         <div className="mb-8">
           <p className="text-xs font-bold text-teal-700 tracking-widest uppercase mb-2">
             Système de rapports GENERAL EXPRESS VOYAGES
@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         {accessDenied ? (
-          <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             Accès refusé. Seuls les comptes admin et leaders peuvent utiliser la
             plateforme.
           </p>

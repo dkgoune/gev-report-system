@@ -27,7 +27,7 @@ export function GroupEditorForm({
   const isEditing = mode === "update";
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <section className="border border-slate-200 bg-slate-50 p-4">
       <div className="space-y-1">
         <h3 className="text-lg font-semibold text-slate-900">
           {isEditing ? "Modifier le groupe" : "Créer un groupe"}
@@ -48,7 +48,7 @@ export function GroupEditorForm({
                 name: event.target.value,
               })
             }
-            className="w-full rounded-md border border-slate-300 px-3 py-2"
+            className="w-full border border-slate-300 px-3 py-2"
             placeholder="Ex. Equipe Envoi Nuit"
             required
           />
@@ -64,7 +64,7 @@ export function GroupEditorForm({
                 service: event.target.value as GroupFormState["service"],
               })
             }
-            className="w-full rounded-md border border-slate-300 px-3 py-2"
+            className="w-full border border-slate-300 px-3 py-2"
           >
             {serviceOptions.map(option => (
               <option key={option.value} value={option.value}>
@@ -74,7 +74,7 @@ export function GroupEditorForm({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm">
           <input
             type="checkbox"
             checked={value.isActive}

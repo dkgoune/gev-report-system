@@ -79,7 +79,7 @@ export function DateTimeInput({
                   type="button"
                   onClick={() => onChange("")}
                   disabled={disabled}
-                  className="inline-flex size-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white hover:text-slate-700 disabled:pointer-events-none disabled:opacity-50"
+                  className="inline-flex size-7 items-center justify-center text-slate-500 transition-colors hover:bg-white hover:text-slate-700 disabled:pointer-events-none disabled:opacity-50"
                   aria-label="Effacer la date et l'heure"
                 >
                   <X className="size-4" />
@@ -90,7 +90,7 @@ export function DateTimeInput({
                 type="button"
                 onClick={() => openCalendar()}
                 disabled={disabled}
-                // className="inline-flex size-7 items-center justify-center rounded-md bg-teal-600 text-white transition-colors hover:bg-teal-700 disabled:pointer-events-none disabled:bg-slate-300"
+                // className="inline-flex size-7 items-center justify-center bg-teal-600 text-white transition-colors hover:bg-teal-700 disabled:pointer-events-none disabled:bg-slate-300"
                 aria-label="Ouvrir le sélecteur de date et d'heure"
               >
                 <CalendarClock className="size-4" />

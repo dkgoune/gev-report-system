@@ -1191,13 +1191,25 @@ export async function markReportAsRead(
 ) {
   const reportType = getReportTypeOrThrow(slug);
 
-  if (session.role !== "admin") {
-    throw new Error("Action réservée aux administrateurs.");
+  if (session.role !== "admin" && session.role !== "leader") {
+    throw new Error("Action réservée aux administrateurs et leaders.");
   }
 
   const delegate = getDelegate(reportType);
 
   try {
+    const existingRecord = await delegate.findUnique({
+      where: { id },
+      select: buildSelect(reportType),
+    });
+
+    if (
+      !existingRecord ||
+      !canAccessReportRecord(reportType, session, existingRecord)
+    ) {
+      return null;
+    }
+
     const updatedRecord = await delegate.update({
       where: { id },
       data: {

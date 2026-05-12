@@ -119,7 +119,7 @@ export function UserCard({
                   fullName: event.target.value,
                 })
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             />
           </label>
 
@@ -133,7 +133,7 @@ export function UserCard({
                   username: event.target.value,
                 })
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             />
           </label>
 
@@ -147,7 +147,7 @@ export function UserCard({
                   role: event.target.value as Role,
                 })
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             >
               {roleOptions.map(role => (
                 <option key={role.value} value={role.value}>
@@ -167,7 +167,7 @@ export function UserCard({
                   phone: event.target.value,
                 })
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             />
           </label>
 

@@ -192,8 +192,8 @@ export function UsersList({
             <span
               className={
                 value === "Actif"
-                  ? "inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700"
-                  : "inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-medium text-slate-700"
+                  ? "inline-flex bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700"
+                  : "inline-flex bg-slate-200 px-2 py-1 text-xs font-medium text-slate-700"
               }
             >
               {value}
@@ -288,26 +288,7 @@ export function UsersList({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-slate-900">
-            Table des personnels
-          </h3>
-          <p className="text-sm text-slate-600">
-            Triez, filtrez et parcourez les comptes sans perdre les actions de
-            gestion.
-          </p>
-        </div>
-
-        <Button asChild className="md:hidden">
-          <Link href="/users/new">
-            <Plus />
-            Ajouter un personnel
-          </Link>
-        </Button>
-      </div>
-
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="border border-slate-200 bg-slate-50 p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
@@ -315,7 +296,7 @@ export function UsersList({
               value={search}
               onChange={event => onSearchChange(event.target.value)}
               placeholder="Rechercher par nom, username, rôle ou groupe"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -331,7 +312,7 @@ export function UsersList({
                   ?.setFilterValue(value === "all" ? undefined : value)
               }
             >
-              <SelectTrigger className="w-full rounded-md bg-white text-sm">
+              <SelectTrigger className="w-full bg-white text-sm">
                 <SelectValue placeholder="Tous les rôles" />
               </SelectTrigger>
               <SelectContent>
@@ -357,7 +338,7 @@ export function UsersList({
                   ?.setFilterValue(value === "all" ? undefined : value)
               }
             >
-              <SelectTrigger className="w-full rounded-md bg-white text-sm">
+              <SelectTrigger className="w-full bg-white text-sm">
                 <SelectValue placeholder="Tous les statuts" />
               </SelectTrigger>
               <SelectContent>
@@ -372,7 +353,7 @@ export function UsersList({
 
       {loading ? <p className="text-sm text-slate-600">Chargement...</p> : null}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             {table.getHeaderGroups().map(headerGroup => (
@@ -430,7 +411,7 @@ export function UsersList({
               value={String(pagination.pageSize)}
               onValueChange={value => table.setPageSize(Number(value))}
             >
-              <SelectTrigger className="w-full rounded-md text-sm md:w-40">
+              <SelectTrigger className="w-full text-sm md:w-40">
                 <SelectValue placeholder="Taille de page" />
               </SelectTrigger>
               <SelectContent align="end">

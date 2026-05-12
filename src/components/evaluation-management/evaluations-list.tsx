@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { impactLabel } from "@/components/criteria-management/constants";
 import { roleLabel } from "@/components/user-management/constants";
+import { AutoFilterForm } from "../ui/auto-filter-form";
 import { getEffectiveWeight } from "./constants";
 import type { EvaluationCriterionOption, EvaluationItem } from "./types";
 
@@ -57,15 +58,15 @@ export function EvaluationsList({
         </Button>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <form className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.65fr)]">
+      <div className="border border-slate-200 bg-slate-50 p-4">
+        <AutoFilterForm className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.65fr)]">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
               name="q"
               defaultValue={filters.search}
               placeholder="Rechercher par personnel, critère, note ou auteur"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -74,7 +75,7 @@ export function EvaluationsList({
             <select
               name="criteriaId"
               defaultValue={filters.criteriaId}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             >
               <option value="">Tous les critères</option>
               {criteriaOptions.map(criterion => (
@@ -91,7 +92,7 @@ export function EvaluationsList({
               type="date"
               name="from"
               defaultValue={filters.startDate}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -101,7 +102,7 @@ export function EvaluationsList({
               type="date"
               name="to"
               defaultValue={filters.endDate}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -110,7 +111,7 @@ export function EvaluationsList({
             <select
               name="pageSize"
               defaultValue={String(filters.pageSize)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             >
               {[10, 20, 50].map(size => (
                 <option key={size} value={size}>
@@ -121,21 +122,20 @@ export function EvaluationsList({
           </label>
 
           <div className="flex flex-wrap gap-2 lg:col-span-5">
-            <Button type="submit">Appliquer les filtres</Button>
             <Button asChild variant="outline">
               <Link href="/evaluations">Réinitialiser</Link>
             </Button>
           </div>
-        </form>
+        </AutoFilterForm>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      <div className="border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
         {totalItems === 0
           ? "Aucune évaluation ne correspond aux filtres actuels."
           : `Affichage de ${startRow} à ${endRow} sur ${totalItems} évaluations.`}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             <TableRow>
@@ -173,7 +173,6 @@ export function EvaluationsList({
 
             {evaluations.map(evaluation => {
               const appliedWeight = getEffectiveWeight(evaluation);
-              const isOverride = evaluation.weightOverride !== null;
               const impactClasses =
                 evaluation.criteria.impact === "POSITIVE"
                   ? "bg-emerald-100 text-emerald-700"
@@ -213,9 +212,6 @@ export function EvaluationsList({
                     >
                       {appliedWeight}
                     </span>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {isOverride ? "Poids personnalisé" : "Poids par défaut"}
-                    </p>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                     <p className="font-medium text-slate-900">
@@ -227,7 +223,7 @@ export function EvaluationsList({
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700">
                     <div className="max-w-md whitespace-normal text-sm text-slate-700">
-                      {evaluation.notes || "Aucune note"}
+                      {evaluation.notes}
                     </div>
                   </TableCell>
                 </TableRow>

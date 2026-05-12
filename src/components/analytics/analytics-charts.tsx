@@ -32,6 +32,14 @@ type BreakdownBarChartProps = {
   label: string;
 };
 
+type EvaluationTrendChartProps = {
+  data: Array<{
+    date: string;
+    evaluations: number;
+    netScore: number;
+  }>;
+};
+
 const trendConfig = {
   reports: {
     label: "Rapports",
@@ -115,6 +123,63 @@ export function BreakdownBarChart({
         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
         <Bar dataKey={dataKey} fill="var(--color-value)" radius={0} />
       </BarChart>
+    </ChartContainer>
+  );
+}
+
+export function EvaluationTrendChart({ data }: EvaluationTrendChartProps) {
+  const config = {
+    evaluations: {
+      label: "Evaluations",
+      color: "var(--color-chart-1)",
+    },
+    netScore: {
+      label: "Score net",
+      color: "var(--color-chart-4)",
+    },
+  } satisfies ChartConfig;
+
+  return (
+    <ChartContainer config={config} className="h-72 w-full">
+      <LineChart data={data} margin={{ left: 8, right: 8, top: 12 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickLine={false}
+          axisLine={false}
+          minTickGap={24}
+          tickFormatter={(value: string) => value.slice(5)}
+        />
+        <YAxis
+          yAxisId="left"
+          tickLine={false}
+          axisLine={false}
+          allowDecimals={false}
+        />
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          tickLine={false}
+          axisLine={false}
+        />
+        <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+        <Line
+          yAxisId="left"
+          type="monotone"
+          dataKey="evaluations"
+          stroke="var(--color-evaluations)"
+          strokeWidth={2}
+          dot={false}
+        />
+        <Line
+          yAxisId="right"
+          type="monotone"
+          dataKey="netScore"
+          stroke="var(--color-netScore)"
+          strokeWidth={2}
+          dot={false}
+        />
+      </LineChart>
     </ChartContainer>
   );
 }

@@ -89,15 +89,6 @@ export function UsersManager({
   }
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2">
-        <SummaryCard label="Personnels" value={totalUsers} tone="slate" />
-        <SummaryCard
-          label="Personnels actifs"
-          value={activeUsers}
-          tone="emerald"
-        />
-      </div>
-
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
@@ -124,27 +115,5 @@ export function UsersManager({
         onDelete={onDelete}
       />
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "slate" | "emerald";
-}) {
-  const toneClassName = {
-    slate: "border-slate-200 bg-slate-50 text-slate-900",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  }[tone];
-
-  return (
-    <article className={`rounded-lg border p-4 ${toneClassName}`}>
-      <p className="text-sm font-medium opacity-80">{label}</p>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
-    </article>
   );
 }

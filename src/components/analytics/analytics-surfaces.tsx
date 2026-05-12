@@ -54,7 +54,7 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <article className=" border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -63,7 +63,7 @@ function MetricCard({
           <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
           <p className="mt-2 text-sm text-slate-600">{description}</p>
         </div>
-        <div className="rounded-full border border-slate-200 bg-white p-2 text-slate-700">
+        <div className="-full border border-slate-200 bg-white p-2 text-slate-700">
           <Icon className="size-4" />
         </div>
       </div>
@@ -165,7 +165,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
+        <article className=" border border-slate-200 bg-white p-4">
           <div className="mb-4 space-y-1">
             <h3 className="text-lg font-semibold text-slate-900">
               Dynamique journalière
@@ -177,7 +177,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
           <TrendChart data={snapshot.trend} />
         </article>
 
-        <article className="rounded-xl border border-slate-200 bg-white p-4">
+        <article className=" border border-slate-200 bg-white p-4">
           <div className="mb-4 space-y-1">
             <h3 className="text-lg font-semibold text-slate-900">
               Incidents dominants
@@ -196,7 +196,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <article className=" border border-slate-200 bg-slate-50 p-4">
           <div className="mb-4 space-y-1">
             <h3 className="text-lg font-semibold text-slate-900">
               Pression par service
@@ -209,7 +209,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
             {snapshot.serviceBreakdown.map(item => (
               <div
                 key={item.service}
-                className="rounded-lg border border-slate-200 bg-white p-3"
+                className="-lg border border-slate-200 bg-white p-3"
               >
                 <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   {item.label}
@@ -226,7 +226,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
           </div>
         </article>
 
-        <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <article className=" border border-slate-200 bg-slate-50 p-4">
           <div className="mb-4 space-y-1">
             <h3 className="text-lg font-semibold text-slate-900">
               Meilleurs signataires
@@ -244,7 +244,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
               snapshot.topSigners.map(item => (
                 <div
                   key={item.userId}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
+                  className="flex items-center justify-between border border-slate-200 bg-white px-3 py-2"
                 >
                   <div>
                     <p className="font-medium text-slate-900">
@@ -313,7 +313,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
         description="Volume d'incidents, services les plus exposés et évolution journalière."
       >
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Total incidents
             </p>
@@ -321,7 +321,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.summary.incidents)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Services suivis
             </p>
@@ -329,7 +329,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.serviceBreakdown.length)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Types actifs
             </p>
@@ -343,14 +343,14 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Tendance des incidents
             </h3>
             <TrendChart data={incidentTrend} />
           </article>
 
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Répartition par type
             </h3>
@@ -367,7 +367,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
           {snapshot.serviceBreakdown.map(item => (
             <article
               key={item.service}
-              className="rounded-xl border border-slate-200 bg-white p-4"
+              className=" border border-slate-200 bg-white p-4"
             >
               <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 {item.label}
@@ -390,7 +390,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
         description="Signatures, équilibre des évaluations et personnels les plus marquants."
       >
         <div className="grid gap-4 md:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Signatures
             </p>
@@ -398,7 +398,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.summary.signatures)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Évaluations positives
             </p>
@@ -406,7 +406,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.evaluationSummary.positiveCount)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Évaluations négatives
             </p>
@@ -414,7 +414,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.evaluationSummary.negativeCount)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Score net
             </p>
@@ -425,7 +425,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Signataires les plus actifs
             </h3>
@@ -438,7 +438,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
                 snapshot.topSigners.map(item => (
                   <div
                     key={item.userId}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    className="flex items-center justify-between border border-slate-200 bg-slate-50 px-3 py-2"
                   >
                     <div>
                       <p className="font-medium text-slate-900">
@@ -457,7 +457,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
             </div>
           </article>
 
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Meilleurs scores
             </h3>
@@ -470,7 +470,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
                 snapshot.leaderboard.top.map(item => (
                   <div
                     key={item.userId}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    className="flex items-center justify-between border border-slate-200 bg-slate-50 px-3 py-2"
                   >
                     <div>
                       <p className="font-medium text-slate-900">
@@ -489,7 +489,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
             </div>
           </article>
 
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Critères les plus utilisés
             </h3>
@@ -509,7 +509,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
         description="Volume global, types de rapports et suivi des éléments non lus."
       >
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Rapports saisis
             </p>
@@ -517,7 +517,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.summary.reports)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Non lus
             </p>
@@ -525,7 +525,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
               {formatInteger(snapshot.summary.unreadReports)}
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className=" border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Types actifs
             </p>
@@ -539,7 +539,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Répartition par type de rapport
             </h3>
@@ -551,7 +551,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
             />
           </article>
 
-          <article className="rounded-xl border border-slate-200 bg-white p-4">
+          <article className=" border border-slate-200 bg-white p-4">
             <h3 className="mb-4 text-lg font-semibold text-slate-900">
               Suivi des non lus
             </h3>
@@ -562,7 +562,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
                 .map(item => (
                   <div
                     key={item.slug}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    className="flex items-center justify-between border border-slate-200 bg-slate-50 px-3 py-2"
                   >
                     <div>
                       <p className="font-medium text-slate-900">{item.title}</p>

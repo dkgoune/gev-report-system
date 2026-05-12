@@ -66,7 +66,7 @@ export function GroupsList({
             value={search}
             onChange={event => onSearchChange(event.target.value)}
             placeholder="Rechercher par nom ou service"
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
           />
         </label>
       </div>

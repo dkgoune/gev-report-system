@@ -60,7 +60,7 @@ export function EvaluationForm({
   }, [users]);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <section className="border border-slate-200 bg-slate-50 p-4">
       <div className="mb-4 space-y-1">
         <h3 className="text-lg font-semibold text-slate-900">
           Nouvelle évaluation
@@ -72,16 +72,13 @@ export function EvaluationForm({
         </p>
       </div>
 
-      <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
+      <form
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+        onSubmit={onSubmit}
+      >
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between gap-2 font-medium text-slate-700">
             <span>Personnel</span>
-            <Button asChild type="button" variant="outline" size="sm">
-              <Link href="/users/new">
-                <UserPlus />
-                Ajouter un personnel
-              </Link>
-            </Button>
           </div>
           <SearchableSelect
             value={formState.userId}
@@ -96,12 +93,6 @@ export function EvaluationForm({
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between gap-2 font-medium text-slate-700">
             <span>Critère</span>
-            <Button asChild type="button" variant="outline" size="sm">
-              <Link href="/criteria/new">
-                <BadgePlus />
-                Ajouter un critère
-              </Link>
-            </Button>
           </div>
           <SearchableSelect
             value={formState.criteriaId}
@@ -119,22 +110,22 @@ export function EvaluationForm({
             type="date"
             value={formState.evaluationDate}
             onChange={event => onChange("evaluationDate", event.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+            className="w-full border border-slate-300 bg-white px-3 py-2 mt-2"
             required
           />
         </label>
 
-        <label className="space-y-1 text-sm md:col-span-2">
+        <label className="space-y-1 text-sm md:col-span-2 xl:col-span-3">
           <span className="font-medium text-slate-700">Notes</span>
           <textarea
             value={formState.notes}
             onChange={event => onChange("notes", event.target.value)}
-            className="min-h-28 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+            className="min-h-28 w-full border border-slate-300 bg-white px-3 py-2"
             placeholder="Ajoutez un contexte ou une justification si nécessaire."
           />
         </label>
 
-        <div className="flex flex-wrap gap-2 md:col-span-2">
+        <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
           <Button type="submit" disabled={submitting}>
             {submitting ? "Enregistrement..." : "Enregistrer l'évaluation"}
           </Button>

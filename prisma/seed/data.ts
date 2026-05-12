@@ -161,6 +161,7 @@ export type SeedVehiculeEmbarqueDefinition = {
 };
 
 export type SeedSignatureLogDefinition = {
+  groupKey: string;
   slipNumber: string;
   signedAt: string;
   busArrivalTime: string | null;
@@ -1285,42 +1286,49 @@ export const SEED_VEHICULES_EMBARQUES: SeedVehiculeEmbarqueDefinition[] = [
 
 export const SEED_SIGNATURE_LOGS: SeedSignatureLogDefinition[] = [
   {
+    groupKey: "group_envoi",
     slipNumber: "SLIP-2204-01",
     busArrivalTime: "2026-04-22T18:55:00.000Z",
     signedAt: "2026-04-22T19:14:00.000Z",
     userKey: "convoyeur_ousmane",
   },
   {
+    groupKey: "group_envoi",
     slipNumber: "SLIP-2204-02",
     busArrivalTime: "2026-04-22T18:55:00.000Z",
     signedAt: "2026-04-22T19:16:00.000Z",
     userKey: "leader_envoi",
   },
   {
+    groupKey: "group_retrait",
     slipNumber: "SLIP-2404-01",
     busArrivalTime: "2026-04-24T19:46:00.000Z",
     signedAt: "2026-04-24T20:10:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
+    groupKey: "group_retrait",
     slipNumber: "SLIP-2804-01",
     busArrivalTime: "2026-04-28T20:08:00.000Z",
     signedAt: "2026-04-28T20:32:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
+    groupKey: "group_retrait",
     slipNumber: "SLIP-3004-01",
     busArrivalTime: "2026-04-30T19:20:00.000Z",
     signedAt: "2026-04-30T19:38:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
+    groupKey: "group_retrait",
     slipNumber: "SLIP-0405-01",
     busArrivalTime: "2026-05-04T19:02:00.000Z",
     signedAt: "2026-05-04T19:22:00.000Z",
     userKey: "convoyeur_aliou",
   },
   {
+    groupKey: "group_envoi",
     slipNumber: "SLIP-0505-01",
     busArrivalTime: "2026-05-05T18:48:00.000Z",
     signedAt: "2026-05-05T19:08:00.000Z",

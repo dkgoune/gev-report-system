@@ -93,7 +93,7 @@ export function UserEditorForm({
         </Button>
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <section className="border border-slate-200 bg-slate-50 p-4">
         <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
           <label className="space-y-1 text-sm">
             <span className="font-medium text-slate-700">Nom complet</span>
@@ -105,7 +105,7 @@ export function UserEditorForm({
                   fullName: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
               required
             />
           </label>
@@ -120,7 +120,7 @@ export function UserEditorForm({
                   username: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
               required
             />
           </label>
@@ -135,7 +135,7 @@ export function UserEditorForm({
                   role: event.target.value as Role,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             >
               {roleOptions.map(role => (
                 <option key={role.value} value={role.value}>
@@ -155,7 +155,7 @@ export function UserEditorForm({
                   groupId: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             >
               <option value="">
                 {formState.role === "admin"
@@ -183,7 +183,7 @@ export function UserEditorForm({
                   phone: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
             />
           </label>
 
@@ -199,14 +199,14 @@ export function UserEditorForm({
                     password: event.target.value,
                   }))
                 }
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="w-full border border-slate-300 px-3 py-2"
                 minLength={6}
                 required
               />
             </label>
           ) : null}
 
-          <label className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm">
+          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm">
             <input
               type="checkbox"
               checked={formState.isActive}

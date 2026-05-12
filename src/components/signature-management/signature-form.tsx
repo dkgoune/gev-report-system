@@ -6,13 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DateTimeInput } from "@/components/ui/date-time-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { roleLabel } from "@/components/user-management/constants";
 import type { SignatureAgentOption, SignatureFormState } from "./types";
 
@@ -31,6 +25,15 @@ export function SignatureForm({
 }: SignatureFormProps) {
   const router = useRouter();
   const defaultState = useMemo(() => initialState, [initialState]);
+  const signerOptions = useMemo(
+    () =>
+      signers.map(signer => ({
+        value: signer.id,
+        label: `${signer.fullName} (${roleLabel(signer.role)})`,
+        keywords: [signer.username, signer.groupName, roleLabel(signer.role)],
+      })),
+    [signers]
+  );
   const [formState, setFormState] = useState<SignatureFormState>(defaultState);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -100,7 +103,7 @@ export function SignatureForm({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <section className="border border-slate-200 bg-slate-50 p-4">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold text-slate-900">
@@ -135,26 +138,19 @@ export function SignatureForm({
       <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
         <div className="space-y-1 text-sm">
           <span className="font-medium text-slate-700">Signataire</span>
-          <Select
+          <SearchableSelect
             value={formState.userId}
+            options={signerOptions}
+            placeholder="Choisir un signataire"
+            searchPlaceholder="Rechercher un membre du groupe"
+            emptyMessage="Aucun signataire correspondant."
             onValueChange={value =>
               setFormState(current => ({
                 ...current,
                 userId: value,
               }))
             }
-          >
-            <SelectTrigger className="w-full rounded-md bg-white text-sm">
-              <SelectValue placeholder="Choisir un signataire" />
-            </SelectTrigger>
-            <SelectContent>
-              {signers.map(signer => (
-                <SelectItem key={signer.id} value={signer.id}>
-                  {signer.fullName} ({roleLabel(signer.role)})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         </div>
 
         <label className="space-y-1 text-sm">

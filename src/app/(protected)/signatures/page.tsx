@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/session";
 type SignaturesPageProps = {
   searchParams: Promise<{
     from?: string;
+    groupId?: string;
     page?: string;
     pageSize?: string;
     q?: string;
@@ -29,6 +30,7 @@ export default async function SignaturesPage({
     <SignaturesList
       signers={payload.signers}
       filters={payload.filters}
+      groups={payload.groups}
       signatures={payload.signatures}
       summary={payload.summary}
       totalItems={payload.pagination.totalItems}

@@ -520,6 +520,11 @@ export async function runSeed() {
         busArrivalTime: record.busArrivalTime
           ? toDateTime(record.busArrivalTime)
           : null,
+        groupId: getRequiredId(
+          groupIdsByKey,
+          record.groupKey,
+          "signature group"
+        ),
         signedAt: toDateTime(record.signedAt),
         userId: getRequiredId(userIdsByKey, record.userKey, "signature user"),
       })),

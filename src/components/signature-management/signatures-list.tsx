@@ -10,11 +10,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { SignatureAgentOption, SignatureLogItem } from "./types";
+import { AutoFilterForm } from "../ui/auto-filter-form";
 
 type SignaturesListProps = {
+  groups: Array<{
+    id: string;
+    name: string;
+  }>;
   signers: SignatureAgentOption[];
   filters: {
     endDate: string;
+    groupId: string;
     page: number;
     pageSize: number;
     search: string;
@@ -33,6 +39,7 @@ type SignaturesListProps = {
 };
 
 export function SignaturesList({
+  groups,
   signers,
   filters,
   signatures,
@@ -72,15 +79,15 @@ export function SignaturesList({
         />
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <form className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.65fr)]">
+      <div className="border border-slate-200 bg-slate-50 p-4">
+        <AutoFilterForm className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.65fr)]">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
               name="q"
               defaultValue={filters.search}
               placeholder="Rechercher par bordereau ou signataire"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -89,7 +96,7 @@ export function SignaturesList({
             <select
               name="userId"
               defaultValue={filters.userId}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             >
               <option value="">Tous les signataires</option>
               {signers.map(signer => (
@@ -100,13 +107,31 @@ export function SignaturesList({
             </select>
           </label>
 
+          {groups.length > 0 ? (
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Groupe</span>
+              <select
+                name="groupId"
+                defaultValue={filters.groupId}
+                className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="">Tous les groupes</option>
+                {groups.map(group => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Du</span>
             <input
               type="date"
               name="from"
               defaultValue={filters.startDate}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -116,7 +141,7 @@ export function SignaturesList({
               type="date"
               name="to"
               defaultValue={filters.endDate}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
@@ -125,7 +150,7 @@ export function SignaturesList({
             <select
               name="pageSize"
               defaultValue={String(filters.pageSize)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             >
               {[10, 20, 50].map(size => (
                 <option key={size} value={size}>
@@ -135,22 +160,21 @@ export function SignaturesList({
             </select>
           </label>
 
-          <div className="flex flex-wrap gap-2 lg:col-span-5">
-            <Button type="submit">Appliquer les filtres</Button>
+          <div className="flex flex-wrap gap-2 lg:col-span-6">
             <Button asChild variant="outline">
               <Link href="/signatures">Réinitialiser</Link>
             </Button>
           </div>
-        </form>
+        </AutoFilterForm>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        {totalItems === 0
-          ? "Aucune signature ne correspond aux filtres actuels."
-          : `Affichage de ${startRow} à ${endRow} sur ${totalItems} signatures.`}
-      </div>
+      {totalItems === 0 ? (
+        <div className="border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Aucune signature ne correspond aux filtres actuels.
+        </div>
+      ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             <TableRow>
@@ -268,11 +292,11 @@ export function SignaturesList({
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+    <article className="border border-slate-200 bg-slate-50 p-4 py-3 flex gap-2 items-center justify-between">
+      <span className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
         {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+      </span>
+      <span className="font-bold">{value}</span>
     </article>
   );
 }
@@ -298,6 +322,10 @@ function buildPageHref(filters: SignaturesListProps["filters"], page: number) {
 
   if (filters.search) {
     params.set("q", filters.search);
+  }
+
+  if (filters.groupId) {
+    params.set("groupId", filters.groupId);
   }
 
   if (filters.userId) {

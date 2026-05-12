@@ -25,6 +25,11 @@ export function canCreateEvaluations(role: Role): boolean {
 export function canViewReportHistory(role: Role): boolean {
   return role === "admin" || role === "leader";
 }
+
+export function canMarkReportsAsRead(role: Role): boolean {
+  return role === "admin" || role === "leader";
+}
+
 export function canCreateReports(role: Role): boolean {
   return role === "admin" || role === "leader" || role === "subleader";
 }

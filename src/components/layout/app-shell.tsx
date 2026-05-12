@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -43,7 +43,12 @@ const adminNavItems: NavItem[] = [
     description: "Vue générale de la plateforme",
     children: [
       { href: "/", match: "exact", title: "Indicateurs importants" },
-      { href: "/analytics", title: "Analytique" },
+      { href: "/analytics", match: "exact", title: "Analytique" },
+      {
+        href: "/evaluations-analytics",
+        match: "exact",
+        title: "Évaluations du personnel",
+      },
     ],
   },
 
@@ -53,7 +58,7 @@ const adminNavItems: NavItem[] = [
     description: "Ajouter et gérer les comptes",
     children: [
       { href: "/users", match: "exact", title: "Liste des personnels" },
-      { href: "/users/new", title: "Ajouter un personnel" },
+      { href: "/users/new", match: "exact", title: "Ajouter un personnel" },
       { href: "/groups", title: "Groupes de services" },
     ],
   },
@@ -82,6 +87,7 @@ const adminNavItems: NavItem[] = [
     children: [
       {
         href: "/evaluations/new",
+        match: "exact",
         title: "Ajouter une évaluation",
         roles: ["admin", "leader", "subleader"],
       },
@@ -97,8 +103,8 @@ const adminNavItems: NavItem[] = [
     title: "Signatures de bordereaux",
     description: "Enregistrez les signataires de bordereaux",
     children: [
-      { href: "/signatures", title: "Liste des signatures" },
-      { href: "/signatures/new", title: "Nouvelle signature" },
+      { href: "/signatures", match: "exact", title: "Liste des signatures" },
+      { href: "/signatures/new", match: "exact", title: "Nouvelle signature" },
     ],
   },
   {
@@ -172,11 +178,6 @@ export function AppShell({ session, children }: AppShellProps) {
       const hasChildren = Boolean(item.children && item.children.length > 0);
       return hasAccess && (item.href || hasChildren);
     });
-
-  const activePage = useMemo(
-    () => resolveActivePage(visibleNavItems, pathname),
-    [pathname, visibleNavItems]
-  );
 
   const roleDisplay = formatRole(session.role);
 
@@ -283,15 +284,6 @@ export function AppShell({ session, children }: AppShellProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {activePage.title}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {activePage.description}
-                </p>
-              </div>
-
               <nav className="space-y-2 pb-4">
                 {visibleNavItems.map(item => (
                   <NavigationItem
@@ -429,33 +421,6 @@ function isGroupActive(item: NavItem, pathname: string) {
       isLinkActive(pathname, child.href, child.match)
     )
   );
-}
-
-function resolveActivePage(items: NavItem[], pathname: string) {
-  for (const item of items) {
-    if (item.href && isLinkActive(pathname, item.href, "exact")) {
-      return {
-        title: item.title,
-        description: item.description,
-      };
-    }
-
-    const activeChild = item.children?.find(child =>
-      isLinkActive(pathname, child.href, child.match)
-    );
-
-    if (activeChild) {
-      return {
-        title: activeChild.title,
-        description: item.description,
-      };
-    }
-  }
-
-  return {
-    title: "Plateforme de rapports",
-    description: "Consultez, saisissez et administrez les espaces disponibles.",
-  };
 }
 
 function formatRole(role: NavRole) {

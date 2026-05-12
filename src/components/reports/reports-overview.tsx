@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import type { ReportListFilters, ReportRecord } from "@/lib/report-records";
 import { serviceLabel } from "@/lib/services";
+import { AutoFilterForm } from "../ui/auto-filter-form";
 
 type GroupOption = {
   id: string;
@@ -97,8 +98,8 @@ export function ReportsOverview({
         </Button>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <form className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
+      <div className="border border-slate-200 bg-slate-50 p-4">
+        <AutoFilterForm className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
@@ -228,21 +229,20 @@ export function ReportsOverview({
           </label>
 
           <div className="flex flex-wrap gap-2 lg:col-span-6">
-            <Button type="submit">Appliquer les filtres</Button>
             <Button asChild variant="outline">
               <Link href="/reports">Réinitialiser</Link>
             </Button>
           </div>
-        </form>
+        </AutoFilterForm>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      <div className="border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
         {totalItems === 0
           ? "Aucun rapport ne correspond aux filtres actuels."
           : `Affichage de ${startRow} à ${endRow} sur ${totalItems} rapports.`}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             <TableRow>
@@ -262,13 +262,16 @@ export function ReportsOverview({
                 Lecture
               </TableHead>
               <TableHead className="px-4 py-3 font-medium">Résumé</TableHead>
+              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
+                Action
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-slate-200">
             {reports.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-8 text-center text-sm text-slate-600"
                 >
                   Aucun rapport disponible.
@@ -315,6 +318,11 @@ export function ReportsOverview({
                   <div className="max-w-xl whitespace-normal text-sm text-slate-700">
                     {buildSummary(report)}
                   </div>
+                </TableCell>
+                <TableCell className="px-4 py-3 whitespace-nowrap">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/reports/${report.id}`}>Voir</Link>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

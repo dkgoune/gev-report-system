@@ -91,7 +91,7 @@ export function AnalyticsRangeFilter({ range }: AnalyticsRangeFilterProps) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <div className="space-y-3  border border-slate-200 bg-slate-50 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -132,7 +132,7 @@ export function AnalyticsRangeFilter({ range }: AnalyticsRangeFilterProps) {
       </div>
 
       {open ? (
-        <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 xl:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="grid gap-4  border border-slate-200 bg-white p-4 xl:grid-cols-[minmax(0,1fr)_16rem]">
           <div className="overflow-x-auto">
             <DayPicker
               mode="range"

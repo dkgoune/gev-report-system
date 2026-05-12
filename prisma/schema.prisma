@@ -19,6 +19,7 @@ model Group {
 
   users          User[]
   generalReports DailyGeneralReport[]
+  signatureLogs  SignatureLog[]
 
   @@unique([name, service])
   @@map("groups")
@@ -363,9 +364,12 @@ model SignatureLog {
   busArrivalTime DateTime?
   createdAt      DateTime  @default(now())
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id])
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
 
+  @@index([groupId])
   @@map("signature_log")
 }
 

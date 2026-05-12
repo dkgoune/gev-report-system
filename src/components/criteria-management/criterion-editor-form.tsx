@@ -80,7 +80,7 @@ export function CriterionEditorForm({
         </Button>
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <section className="border border-slate-200 bg-slate-50 p-4">
         <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
           <label className="space-y-1 text-sm md:col-span-2">
             <span className="font-medium text-slate-700">Nom du critère</span>
@@ -92,7 +92,7 @@ export function CriterionEditorForm({
                   name: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
               placeholder="Ex: Absence non justifiée"
               required
             />
@@ -109,7 +109,7 @@ export function CriterionEditorForm({
                 }))
               }
             >
-              <SelectTrigger className="w-full rounded-md bg-white text-sm">
+              <SelectTrigger className="w-full bg-white text-sm">
                 <SelectValue placeholder="Choisir un impact" />
               </SelectTrigger>
               <SelectContent>
@@ -134,7 +134,7 @@ export function CriterionEditorForm({
                   defaultWeight: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
               required
             />
           </label>
@@ -154,7 +154,7 @@ export function CriterionEditorForm({
                   maxDaily: event.target.value,
                 }))
               }
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2"
               placeholder="Laisser vide pour aucune limite"
             />
             <span className="block text-xs text-slate-500">
@@ -163,7 +163,7 @@ export function CriterionEditorForm({
             </span>
           </label>
 
-          <label className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm md:col-span-2">
+          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm md:col-span-2">
             <input
               type="checkbox"
               checked={formState.isActive}

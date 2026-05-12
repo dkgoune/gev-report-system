@@ -24,7 +24,7 @@ export function PasswordResetForm({
   onCancel,
 }: PasswordResetFormProps) {
   return (
-    <div className="mt-3 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+    <div className="mt-3 space-y-2 border border-amber-200 bg-amber-50 p-3">
       <p className="text-sm font-medium text-amber-800">
         Réinitialisation du mot de passe — {userFullName}
       </p>
@@ -37,7 +37,7 @@ export function PasswordResetForm({
           type="password"
           value={newPassword}
           onChange={event => onNewPasswordChange(event.target.value)}
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
+          className="w-full border border-slate-300 px-3 py-2"
           minLength={6}
           autoFocus
         />
@@ -51,7 +51,7 @@ export function PasswordResetForm({
           type="password"
           value={confirmPassword}
           onChange={event => onConfirmPasswordChange(event.target.value)}
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
+          className="w-full border border-slate-300 px-3 py-2"
           minLength={6}
         />
       </label>

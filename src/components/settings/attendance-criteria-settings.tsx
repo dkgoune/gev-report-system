@@ -139,7 +139,7 @@ export function AttendanceCriteriaSettings({
         </p>
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <section className="border border-slate-200 bg-slate-50 p-4">
         <form
           className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_220px_auto] md:items-end"
           onSubmit={onSubmit}
@@ -162,7 +162,7 @@ export function AttendanceCriteriaSettings({
               value={status}
               onValueChange={value => setStatus(value as AttendanceStatus)}
             >
-              <SelectTrigger className="w-full rounded-md bg-white text-sm">
+              <SelectTrigger className="w-full bg-white text-sm">
                 <SelectValue placeholder="Choisir un statut" />
               </SelectTrigger>
               <SelectContent>
@@ -181,7 +181,7 @@ export function AttendanceCriteriaSettings({
         </form>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <section className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             <TableRow>

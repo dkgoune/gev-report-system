@@ -3,6 +3,8 @@ import type { Role } from "@/generated/prisma/enums";
 export type SignatureAgentOption = {
   id: string;
   fullName: string;
+  groupId: string;
+  groupName: string;
   role: Role;
   username: string;
 };
@@ -10,6 +12,10 @@ export type SignatureAgentOption = {
 export type SignatureLogItem = {
   busArrivalTime: string | null;
   createdAt: string;
+  group: {
+    id: string;
+    name: string;
+  };
   id: string;
   signedAt: string | null;
   slipNumber: string;
