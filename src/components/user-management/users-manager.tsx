@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { roleLabel, serviceOptionLabel } from "./constants";
+import { roleLabel } from "./constants";
 import type { UserItem } from "./types";
 import { UsersList } from "./users-list";
 
@@ -21,7 +21,7 @@ export function UsersManager({
 
   const [users, setUsers] = useState<UserItem[]>(initialUsers);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   async function loadUsers() {
@@ -54,23 +54,18 @@ export function UsersManager({
         user.fullName.toLowerCase().includes(term) ||
         user.username.toLowerCase().includes(term) ||
         roleLabel(user.role).toLowerCase().includes(term) ||
-        (user.phone || "").toLowerCase().includes(term) ||
-        (user.group?.name || "").toLowerCase().includes(term) ||
-        (user.group ? serviceOptionLabel(user.group.service) : "")
-          .toLowerCase()
-          .includes(term)
+        (user.phone || "").toLowerCase().includes(term)
       );
     });
   }, [search, users]);
 
-  const totalUsers = users.length;
-  const activeUsers = users.filter(user => user.isActive).length;
-
-  async function onDelete(user: UserItem) {
-    setDeletingId(user.id);
+  async function onToggleActive(user: UserItem) {
+    setTogglingId(user.id);
 
     const response = await fetch(`/api/users/${user.id}`, {
-      method: "DELETE",
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !user.isActive }),
     });
 
     const payload = (await response.json().catch(() => null)) as {
@@ -78,15 +73,20 @@ export function UsersManager({
     } | null;
 
     if (!response.ok) {
-      toast.error(payload?.error || "Impossible de supprimer ce personnel.");
-      setDeletingId(null);
+      toast.error(
+        payload?.error || "Impossible de modifier le statut de ce personnel."
+      );
+      setTogglingId(null);
       return;
     }
 
-    toast.success("Personnel supprimé.");
-    setDeletingId(null);
+    toast.success(
+      user.isActive ? "Personnel désactivé." : "Personnel réactivé."
+    );
+    setTogglingId(null);
     await loadUsers();
   }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -95,8 +95,7 @@ export function UsersManager({
             Gestion des personnels
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Administrez les comptes, leur rattachement aux groupes métier et
-            leurs accès depuis cette page dédiée.
+            Administrez les comptes et leurs accès au sein de votre agence.
           </p>
         </div>
 
@@ -110,9 +109,9 @@ export function UsersManager({
         loading={loadingUsers}
         search={search}
         isAdmin={isAdmin}
-        deletingId={deletingId}
+        togglingId={togglingId}
         onSearchChange={setSearch}
-        onDelete={onDelete}
+        onToggleActive={onToggleActive}
       />
     </div>
   );

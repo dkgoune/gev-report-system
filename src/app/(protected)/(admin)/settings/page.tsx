@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AttendanceCriteriaSettings } from "@/components/settings/attendance-criteria-settings";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -10,34 +11,42 @@ export default async function SettingsPage() {
     redirect("/auth/login");
   }
 
-  if (session.role !== "admin") {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const [criteria, settings] = await Promise.all([
     prisma.criterion.findMany({
-      where: { isActive: true },
+      where: {
+        agencyId: session.activeAgencyId,
+        isActive: true,
+      },
       orderBy: [{ impact: "asc" }, { name: "asc" }],
       select: {
         id: true,
         name: true,
         impact: true,
-        defaultWeight: true,
+        weight: true,
         maxDaily: true,
       },
     }),
     prisma.attendanceCriterionSetting.findMany({
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      where: {
+        criterion: {
+          agencyId: session.activeAgencyId,
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
       select: {
         id: true,
-        status: true,
+        isEnabled: true,
         createdAt: true,
         criterion: {
           select: {
             id: true,
             name: true,
             impact: true,
-            defaultWeight: true,
+            weight: true,
             maxDaily: true,
           },
         },
@@ -49,14 +58,16 @@ export default async function SettingsPage() {
     <AttendanceCriteriaSettings
       initialCriteria={criteria.map(criterion => ({
         ...criterion,
-        defaultWeight: criterion.defaultWeight.toString(),
+        impact: criterion.impact as "high" | "low",
+        weight: criterion.weight.toString(),
       }))}
       initialSettings={settings.map(setting => ({
         ...setting,
         createdAt: setting.createdAt.toISOString(),
         criterion: {
           ...setting.criterion,
-          defaultWeight: setting.criterion.defaultWeight.toString(),
+          impact: setting.criterion.impact as "high" | "low",
+          weight: setting.criterion.weight.toString(),
         },
       }))}
     />

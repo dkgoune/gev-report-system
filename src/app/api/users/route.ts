@@ -1,58 +1,77 @@
 import { NextResponse } from "next/server";
-import type { Role } from "@/generated/prisma/enums";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import type { MembershipRole } from "@/generated/prisma/enums";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
-const ALLOWED_ROLES: Role[] = [
+const ALLOWED_ROLES: MembershipRole[] = [
   "admin",
-  "leader",
-  "subleader",
-  "agent",
-  "convoyer",
+  "scheduler",
+  "reporter",
+  "worker",
 ];
 
-function isAllowedRole(role: string): role is Role {
-  return ALLOWED_ROLES.includes(role as Role);
+function isAllowedRole(role: string): role is MembershipRole {
+  return ALLOWED_ROLES.includes(role as MembershipRole);
 }
 
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
   const users = await prisma.user.findMany({
+    where: {
+      memberships: {
+        some: {
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       fullName: true,
       username: true,
-      role: true,
       phone: true,
       isActive: true,
       createdAt: true,
       updatedAt: true,
-      group: {
+      memberships: {
+        where: {
+          agencyId: session.activeAgencyId,
+        },
         select: {
-          id: true,
-          name: true,
-          service: true,
+          role: true,
           isActive: true,
         },
       },
     },
   });
 
-  return NextResponse.json({ users });
+  return NextResponse.json({
+    users: users.map(user => ({
+      id: user.id,
+      fullName: user.fullName,
+      username: user.username,
+      role: user.memberships[0]?.role ?? "worker",
+      membershipActive: user.memberships[0]?.isActive ?? false,
+      phone: user.phone,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    })),
+  });
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -61,7 +80,6 @@ export async function POST(request: Request) {
       fullName: string;
       username: string;
       role: string;
-      groupId: string | null;
       phone: string;
       password: string;
       isActive: boolean;
@@ -70,7 +88,6 @@ export async function POST(request: Request) {
     const fullName = body.fullName?.trim();
     const username = body.username?.trim();
     const role = body.role?.trim();
-    const groupId = body.groupId?.trim() || null;
     const password = body.password;
     const phone = body.phone?.trim() || null;
     const isActive = body.isActive ?? true;
@@ -96,58 +113,58 @@ export async function POST(request: Request) {
       );
     }
 
-    if (role !== "admin" && !groupId) {
-      return NextResponse.json(
-        { error: "Un groupe est obligatoire pour ce rôle." },
-        { status: 400 }
-      );
-    }
-
-    if (groupId) {
-      const group = await prisma.group.findFirst({
-        where: { id: groupId, isActive: true },
-        select: { id: true },
-      });
-
-      if (!group) {
-        return NextResponse.json(
-          { error: "Groupe invalide." },
-          { status: 400 }
-        );
-      }
-    }
-
     const user = await prisma.user.create({
       data: {
         fullName,
         username,
-        role,
-        groupId,
         phone,
         password: hashPassword(password),
         isActive,
+        memberships: {
+          create: {
+            agencyId: session.activeAgencyId,
+            role,
+            isActive: true,
+          },
+        },
       },
       select: {
         id: true,
         fullName: true,
         username: true,
-        role: true,
         phone: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
-        group: {
+        memberships: {
+          where: {
+            agencyId: session.activeAgencyId,
+          },
           select: {
-            id: true,
-            name: true,
-            service: true,
+            role: true,
             isActive: true,
           },
         },
       },
     });
 
-    return NextResponse.json({ ok: true, user }, { status: 201 });
+    return NextResponse.json(
+      {
+        ok: true,
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          username: user.username,
+          role: user.memberships[0]?.role ?? "worker",
+          membershipActive: user.memberships[0]?.isActive ?? false,
+          phone: user.phone,
+          isActive: user.isActive,
+          createdAt: user.createdAt.toISOString(),
+          updatedAt: user.updatedAt.toISOString(),
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (
       typeof error === "object" &&

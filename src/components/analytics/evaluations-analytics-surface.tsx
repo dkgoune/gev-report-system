@@ -7,11 +7,10 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { roleLabel } from "@/components/user-management/constants";
+import type { MembershipRole } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
-import { type EvaluationsAnalyticsSnapshot } from "@/lib/evaluations-analytics";
+import { type EvaluationsAnalyticsSnapshot } from "@/lib/evaluations-analytics.types";
 import { buildRangeSearchParams } from "@/lib/analytics-range";
-import { serviceLabel } from "@/lib/services";
 import { AnalyticsRangeFilter } from "./analytics-range-filter";
 import { BreakdownBarChart, EvaluationTrendChart } from "./analytics-charts";
 
@@ -29,6 +28,20 @@ function formatSigned(value: number) {
   }).format(value);
 
   return value > 0 ? `+${formatted}` : formatted;
+}
+
+function roleLabel(role: MembershipRole) {
+  switch (role) {
+    case "admin":
+      return "Administrateur";
+    case "scheduler":
+      return "Planificateur";
+    case "reporter":
+      return "Rapporteur";
+    case "worker":
+    default:
+      return "Travailleur";
+  }
 }
 
 function buildAnalyticsHref(
@@ -115,7 +128,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
     <div className="space-y-8">
       <div className="space-y-2">
         <h2 className="text-3xl font-bold text-slate-900">
-          Analytique des evaluations
+          Analyse des evaluations
         </h2>
         <p className="text-sm text-slate-600">
           Lecture detaillee des performances du personnel sur une periode
@@ -130,7 +143,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
           <Link href={buildAnalyticsHref(snapshot, "#workers")}>Personnel</Link>
         </Button>
         <Button asChild size="sm" variant="outline">
-          <Link href={buildAnalyticsHref(snapshot, "#groups")}>Groupes</Link>
+          <Link href={buildAnalyticsHref(snapshot, "#posts")}>Postes</Link>
         </Button>
         <Button asChild size="sm" variant="outline">
           <Link href={buildAnalyticsHref(snapshot, "#criteria")}>Criteres</Link>
@@ -165,9 +178,9 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
           icon={Users}
         />
         <MetricCard
-          title="Groupes actifs"
+          title="Postes actifs"
           value={formatInteger(snapshot.summary.activeGroups)}
-          description="Groupes ayant au moins une evaluation sur l'intervalle."
+          description="Postes ayant au moins une evaluation sur l'intervalle."
           icon={Users}
         />
         <MetricCard
@@ -283,7 +296,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                     Personnel
                   </th>
                   <th className="px-4 py-3 font-medium whitespace-nowrap">
-                    Groupe
+                    Poste
                   </th>
                   <th className="px-4 py-3 font-medium whitespace-nowrap">
                     Evaluations
@@ -328,18 +341,18 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
       </SectionFrame>
 
       <SectionFrame
-        id="groups"
-        title="Groupes"
-        description="Volume d'evaluations, couverture et score moyen par groupe."
+        id="posts"
+        title="Postes"
+        description="Volume d'evaluations, couverture et score moyen par poste."
       >
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <article className="border border-slate-200 bg-white p-4">
             <div className="mb-4 space-y-1">
               <h3 className="text-lg font-semibold text-slate-900">
-                Evaluations par groupe
+                Evaluations par poste
               </h3>
               <p className="text-sm text-slate-600">
-                Groupes les plus evalues sur la periode selectionnee.
+                Postes les plus evalues sur la periode selectionnee.
               </p>
             </div>
             <BreakdownBarChart
@@ -353,10 +366,10 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
           <article className="border border-slate-200 bg-slate-50 p-4">
             <div className="mb-4 space-y-1">
               <h3 className="text-lg font-semibold text-slate-900">
-                Resume par groupe
+                Resume par poste
               </h3>
               <p className="text-sm text-slate-600">
-                Total, couverture et moyenne des scores par groupe.
+                Total, couverture et moyenne des scores par poste.
               </p>
             </div>
             <div className="space-y-3">
@@ -371,9 +384,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                         {group.groupName}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {group.service
-                          ? serviceLabel(group.service)
-                          : "Sans service"}
+                        {group.service ? group.service : "Sans service"}
                       </p>
                     </div>
                     <p className="text-sm font-semibold text-slate-900">

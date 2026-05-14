@@ -1,9 +1,9 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { MembershipRole } from "@/generated/prisma/enums";
 
 type PersonnelOption = {
   id: string;
   fullName: string;
-  role: Role;
+  role: MembershipRole;
   username: string;
 };
 

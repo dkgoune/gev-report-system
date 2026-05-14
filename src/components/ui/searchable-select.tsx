@@ -61,14 +61,16 @@ export function SearchableSelect({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  useEffect(() => {
-    if (!open) {
-      setQuery("");
-      return;
-    }
+    useEffect(() => {
+      if (open) {
+        inputRef.current?.focus();
+      }
+    }, [open]);
 
-    inputRef.current?.focus();
-  }, [open]);
+    function closeDropdown() {
+      setOpen(false);
+      setQuery("");
+    }
 
   return (
     <div ref={rootRef} className="relative">
@@ -81,7 +83,15 @@ export function SearchableSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={listboxId}
-        onClick={() => setOpen(current => !current)}
+          onClick={() =>
+            setOpen(current => {
+              if (current) {
+                setQuery("");
+              }
+
+              return !current;
+            })
+          }
       >
         <span
           className={cn(
@@ -134,7 +144,7 @@ export function SearchableSelect({
                     )}
                     onClick={() => {
                       onValueChange(option.value);
-                      setOpen(false);
+                        closeDropdown();
                     }}
                   >
                     <span>{option.label}</span>

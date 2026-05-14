@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { DashboardSurface } from "@/components/analytics/analytics-surfaces";
-import { getAnalyticsSnapshot } from "@/lib/analytics";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
+import { getAnalyticsSnapshot } from "../../lib/analytics";
 import { resolveAnalyticsRange } from "@/lib/analytics-range";
 import { getServerSession } from "@/lib/session";
 
@@ -21,7 +22,7 @@ export default async function DashboardPage({
     redirect("/auth/login");
   }
 
-  if (session.role !== "admin") {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/reports");
   }
 

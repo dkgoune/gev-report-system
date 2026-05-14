@@ -1,23 +1,13 @@
 import { redirect } from "next/navigation";
 import { ReportCreationManager } from "@/components/reports/report-creation-manager";
-import { getGeneralSubReportSections } from "@/lib/general-report-subreports";
+import { GENERAL_REPORT_FIELDS } from "@/components/reports/report-general-fields";
+import { canAccessAgencyAdminWorkspace, canCreateReports } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import type { ReportGroup } from "@/lib/report-records";
-import { getCreateDefaults } from "@/lib/report-records";
 import { getServerSession } from "@/lib/session";
-import { buildScopedUserWhere } from "@/lib/user-scope";
-
-const REPORT_PERSONNEL_ROLES = [
-  "agent",
-  "convoyer",
-  "leader",
-  "subleader",
-] as const;
 
 type NewReportPageProps = {
   searchParams: Promise<{
-    date?: string;
-    groupId?: string;
+    workScheduleId?: string;
   }>;
 };
 
@@ -30,84 +20,111 @@ export default async function NewReportPage({
     redirect("/auth/login");
   }
 
-  const defaults = getCreateDefaults("general", session, await searchParams);
+  if (!canCreateReports(session)) {
+    redirect("/reports");
+  }
 
-  const [groupsByService, personnelByService, sectionsByService] =
-    await Promise.all([
-      Promise.all(
-        defaults.reportType.allowedServices.map(async service => {
-          const groups = await prisma.group.findMany({
-            where: {
-              isActive: true,
-              service,
-              ...(session.role === "admin"
-                ? {}
-                : {
-                    id: session.groupId ?? undefined,
-                  }),
-            },
-            orderBy: [{ name: "asc" }],
-            select: {
-              id: true,
-              name: true,
-              service: true,
-            },
-          });
+  const query = await searchParams;
 
-          return [service, groups] as const;
-        })
-      ).then(Object.fromEntries),
-      Promise.all(
-        defaults.reportType.allowedServices.map(async service => {
-          const users = await prisma.user.findMany({
-            where: {
-              ...buildScopedUserWhere(session, [...REPORT_PERSONNEL_ROLES]),
-              group: {
-                service,
+  const now = new Date();
+  const todayIso = now.toISOString().slice(0, 10);
+  const earliestIso = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const todayDate = new Date(`${todayIso}T00:00:00.000Z`);
+  const earliestDate = new Date(`${earliestIso}T00:00:00.000Z`);
+
+  const isAdmin = canAccessAgencyAdminWorkspace(session);
+
+  const schedules = await prisma.workSchedule.findMany({
+    where: {
+      agencyId: session.activeAgencyId,
+      workDate: {
+        gte: earliestDate,
+        lte: todayDate,
+      },
+      ...(!isAdmin
+        ? {
+            assignments: {
+              some: {
+                userId: session.userId,
+                OR: [{ isLeader: true }, { isSubleader: true }],
               },
             },
-            orderBy: [{ fullName: "asc" }, { username: "asc" }],
+          }
+        : {}),
+      generalReport: null,
+    },
+    orderBy: [{ workDate: "desc" }],
+    select: {
+      id: true,
+      workDate: true,
+      service: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      assignments: {
+        select: {
+          user: {
             select: {
               id: true,
               fullName: true,
-              groupId: true,
-              role: true,
               username: true,
+              memberships: {
+                where: {
+                  agencyId: session.activeAgencyId,
+                  isActive: true,
+                },
+                take: 1,
+                select: {
+                  role: true,
+                },
+              },
             },
-          });
+          },
+        },
+      },
+    },
+  });
 
-          return [service, users] as const;
-        })
-      ).then(Object.fromEntries),
-      Promise.resolve(
-        Object.fromEntries(
-          defaults.reportType.allowedServices.map(service => [
-            service,
-            getGeneralSubReportSections(service),
-          ])
-        )
-      ),
-    ]);
-
-  const groups = Object.values(groupsByService).flat() as ReportGroup[];
-  const initialGroupId = defaults.groupId || groups[0]?.id || "";
-
-  if (!initialGroupId) {
+  if (schedules.length === 0) {
     redirect("/");
   }
 
+  const availableSchedules = schedules.map(schedule => ({
+    id: schedule.id,
+    workDate: schedule.workDate.toISOString(),
+    serviceId: schedule.service.id,
+    serviceName: schedule.service.name,
+  }));
+
+  const personnelBySchedule = Object.fromEntries(
+    schedules.map(schedule => [
+      schedule.id,
+      schedule.assignments.map(assignment => ({
+        id: assignment.user.id,
+        fullName: assignment.user.fullName,
+        username: assignment.user.username,
+        role: assignment.user.memberships[0]?.role ?? "worker",
+      })),
+    ])
+  );
+
+  const requestedScheduleId = (query.workScheduleId || "").trim();
+  const initialWorkScheduleId = availableSchedules.some(
+    schedule => schedule.id === requestedScheduleId
+  )
+    ? requestedScheduleId
+    : availableSchedules[0].id;
+
   return (
     <ReportCreationManager
-      generalFields={defaults.reportType.fields.filter(
-        field =>
-          field.key !== "personnelPresent" && field.key !== "personnelAbsent"
-      )}
-      groupsByService={groupsByService}
-      initialDate={defaults.reportDate}
-      initialGroupId={initialGroupId}
-      isAdmin={session.role === "admin"}
-      personnelByService={personnelByService}
-      sectionsByService={sectionsByService}
+      generalFields={GENERAL_REPORT_FIELDS}
+      schedules={availableSchedules}
+      initialWorkScheduleId={initialWorkScheduleId}
+      personnelBySchedule={personnelBySchedule}
     />
   );
 }

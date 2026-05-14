@@ -1,49 +1,55 @@
-import type {
-  CriterionImpact,
-  CriterionItem,
-} from "@/components/criteria-management/types";
-import type { Role } from "@/components/user-management/types";
-
 export type EvaluationUserOption = {
   id: string;
   fullName: string;
-  role: Role;
 };
 
-export type EvaluationCriterionOption = Pick<
-  CriterionItem,
-  "id" | "name" | "impact" | "defaultWeight"
->;
+export type EvaluationScheduleOption = {
+  id: string;
+  workDate: string;
+  serviceName: string;
+};
+
+export type EvaluationCriterionOption = {
+  id: string;
+  name: string;
+  impact: string;
+};
 
 export type EvaluationItem = {
   id: string;
-  evaluationDate: string;
-  weightOverride: string | null;
-  notes: string | null;
+  score: number;
+  comment: string | null;
   createdAt: string;
-  user: {
+  updatedAt: string;
+  evaluatedUser: {
     id: string;
     fullName: string;
-    role: Role;
     isActive: boolean;
   };
-  criteria: {
+  criterion: {
     id: string;
     name: string;
-    impact: CriterionImpact;
-    defaultWeight: string;
+    impact: string;
     isActive: boolean;
   };
-  recordedBy: {
+  evaluatingLeader: {
     id: string;
     fullName: string;
     username: string;
   };
+  workSchedule: {
+    id: string;
+    workDate: string;
+    service: {
+      name: string;
+    };
+  };
 };
 
 export type EvaluationFormState = {
-  userId: string;
-  criteriaId: string;
-  evaluationDate: string;
-  notes: string;
+  evaluatedUserId: string;
+  criterionId: string;
+  workScheduleId: string;
+  score: string;
+  comment: string;
 };

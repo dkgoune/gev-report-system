@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { getServerSession } from "@/lib/session";
 import { UsersManager } from "@/components/user-management/users-manager";
 
@@ -11,26 +11,34 @@ export default async function UsersPage() {
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const users = await prisma.user.findMany({
+    where: {
+      memberships: {
+        some: {
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       fullName: true,
       username: true,
-      role: true,
       phone: true,
       isActive: true,
       createdAt: true,
       updatedAt: true,
-      group: {
+      memberships: {
+        where: {
+          agencyId: session.activeAgencyId,
+        },
         select: {
-          id: true,
-          name: true,
-          service: true,
+          role: true,
           isActive: true,
         },
       },
@@ -38,12 +46,21 @@ export default async function UsersPage() {
   });
 
   const initialUsers = users.map(user => ({
-    ...user,
+    id: user.id,
+    fullName: user.fullName,
+    username: user.username,
+    role: user.memberships[0]?.role ?? "worker",
+    membershipActive: user.memberships[0]?.isActive ?? false,
+    phone: user.phone,
+    isActive: user.isActive,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   }));
 
   return (
-    <UsersManager initialUsers={initialUsers} currentUserRole={session.role} />
+    <UsersManager
+      initialUsers={initialUsers}
+      currentUserRole={session.activeMembershipRole}
+    />
   );
 }

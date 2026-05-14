@@ -1,10 +1,10 @@
-export type CriterionImpact = "POSITIVE" | "NEGATIVE";
+export type CriterionImpact = string;
 
 export type CriterionItem = {
   id: string;
   name: string;
   impact: CriterionImpact;
-  defaultWeight: string;
+  weight: string;
   maxDaily: number | null;
   isActive: boolean;
   createdAt: string;
@@ -14,7 +14,7 @@ export type CriterionItem = {
 export type CriterionFormState = {
   name: string;
   impact: CriterionImpact;
-  defaultWeight: string;
+  weight: string;
   maxDaily: string;
   isActive: boolean;
 };

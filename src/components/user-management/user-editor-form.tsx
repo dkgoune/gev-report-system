@@ -6,8 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { roleOptions } from "./constants";
-import { serviceLabel } from "@/lib/services";
-import type { GroupOption, Role, UserFormState } from "./types";
+import type { Role, UserFormState } from "./types";
 
 type UserEditorFormProps = {
   mode: "create" | "update";
@@ -15,7 +14,6 @@ type UserEditorFormProps = {
   userId?: string;
   title: string;
   description: string;
-  groups: GroupOption[];
 };
 
 export function UserEditorForm({
@@ -24,7 +22,6 @@ export function UserEditorForm({
   userId,
   title,
   description,
-  groups,
 }: UserEditorFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<UserFormState>(initialState);
@@ -43,7 +40,6 @@ export function UserEditorForm({
             fullName: formState.fullName,
             username: formState.username,
             role: formState.role,
-            groupId: formState.groupId || null,
             phone: formState.phone || null,
             isActive: formState.isActive,
           };
@@ -143,34 +139,6 @@ export function UserEditorForm({
                 </option>
               ))}
             </select>
-          </label>
-
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700">Groupe</span>
-            <select
-              value={formState.groupId}
-              onChange={event =>
-                setFormState(current => ({
-                  ...current,
-                  groupId: event.target.value,
-                }))
-              }
-              className="w-full border border-slate-300 px-3 py-2"
-            >
-              <option value="">
-                {formState.role === "admin"
-                  ? "Aucun groupe"
-                  : "Choisir un groupe"}
-              </option>
-              {groups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.name} ({serviceLabel(group.service)})
-                </option>
-              ))}
-            </select>
-            <span className="block text-xs text-slate-500">
-              Le groupe est obligatoire pour les rôles non administrateurs.
-            </span>
           </label>
 
           <label className="space-y-1 text-sm">

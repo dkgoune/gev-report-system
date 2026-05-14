@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { UserResetPasswordPage } from "@/components/user-management/user-reset-password-page";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -17,14 +17,22 @@ export default async function ResetPasswordPage({
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const { id } = await params;
 
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const user = await prisma.user.findFirst({
+    where: {
+      id,
+      memberships: {
+        some: {
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+      },
+    },
     select: {
       id: true,
       fullName: true,

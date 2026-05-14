@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
-import { BadgePlus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { impactOptions } from "@/components/criteria-management/constants";
@@ -10,12 +8,14 @@ import { buildCriterionLabel, buildUserLabel } from "./constants";
 import type {
   EvaluationCriterionOption,
   EvaluationFormState,
+  EvaluationScheduleOption,
   EvaluationUserOption,
 } from "./types";
 
 type EvaluationFormProps = {
   criteria: EvaluationCriterionOption[];
   formState: EvaluationFormState;
+  schedules: EvaluationScheduleOption[];
   selectedCriterion?: EvaluationCriterionOption;
   submitting: boolean;
   users: EvaluationUserOption[];
@@ -27,6 +27,7 @@ type EvaluationFormProps = {
 export function EvaluationForm({
   criteria,
   formState,
+  schedules,
   submitting,
   users,
   onSubmit,
@@ -55,9 +56,21 @@ export function EvaluationForm({
     return users.map(user => ({
       value: user.id,
       label: buildUserLabel(user),
-      keywords: [user.fullName, user.role],
+      keywords: [user.fullName],
     }));
   }, [users]);
+
+  const scheduleOptions = useMemo(() => {
+    return schedules.map(schedule => ({
+      value: schedule.id,
+      label: `${new Date(schedule.workDate).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })} - ${schedule.serviceName}`,
+      keywords: [schedule.serviceName, schedule.workDate],
+    }));
+  }, [schedules]);
 
   return (
     <section className="border border-slate-200 bg-slate-50 p-4">
@@ -73,7 +86,7 @@ export function EvaluationForm({
       </div>
 
       <form
-        className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
         onSubmit={onSubmit}
       >
         <div className="space-y-2 text-sm">
@@ -81,8 +94,8 @@ export function EvaluationForm({
             <span>Personnel</span>
           </div>
           <SearchableSelect
-            value={formState.userId}
-            onValueChange={value => onChange("userId", value)}
+            value={formState.evaluatedUserId}
+            onValueChange={value => onChange("evaluatedUserId", value)}
             options={userOptions}
             placeholder="Choisir un personnel"
             searchPlaceholder="Rechercher un personnel"
@@ -95,8 +108,8 @@ export function EvaluationForm({
             <span>Critère</span>
           </div>
           <SearchableSelect
-            value={formState.criteriaId}
-            onValueChange={value => onChange("criteriaId", value)}
+            value={formState.criterionId}
+            onValueChange={value => onChange("criterionId", value)}
             options={criterionOptions}
             placeholder="Choisir un critère"
             searchPlaceholder="Rechercher un critère"
@@ -104,22 +117,37 @@ export function EvaluationForm({
           />
         </div>
 
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center justify-between gap-2 font-medium text-slate-700">
+            <span>Planning</span>
+          </div>
+          <SearchableSelect
+            value={formState.workScheduleId}
+            onValueChange={value => onChange("workScheduleId", value)}
+            options={scheduleOptions}
+            placeholder="Choisir un planning"
+            searchPlaceholder="Rechercher un planning"
+            emptyMessage="Aucun planning ne correspond a la recherche."
+          />
+        </div>
+
         <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">Date d'évaluation</span>
+          <span className="font-medium text-slate-700">Score</span>
           <input
-            type="date"
-            value={formState.evaluationDate}
-            onChange={event => onChange("evaluationDate", event.target.value)}
+            type="number"
+            min={0}
+            value={formState.score}
+            onChange={event => onChange("score", event.target.value)}
             className="w-full border border-slate-300 bg-white px-3 py-2 mt-2"
             required
           />
         </label>
 
-        <label className="space-y-1 text-sm md:col-span-2 xl:col-span-3">
+        <label className="space-y-1 text-sm md:col-span-2 xl:col-span-4">
           <span className="font-medium text-slate-700">Notes</span>
           <textarea
-            value={formState.notes}
-            onChange={event => onChange("notes", event.target.value)}
+            value={formState.comment}
+            onChange={event => onChange("comment", event.target.value)}
             className="min-h-28 w-full border border-slate-300 bg-white px-3 py-2"
             placeholder="Ajoutez un contexte ou une justification si nécessaire."
           />

@@ -9,9 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { impactLabel } from "@/components/criteria-management/constants";
-import { roleLabel } from "@/components/user-management/constants";
 import { AutoFilterForm } from "../ui/auto-filter-form";
-import { getEffectiveWeight } from "./constants";
 import type { EvaluationCriterionOption, EvaluationItem } from "./types";
 
 type EvaluationsListProps = {
@@ -24,6 +22,7 @@ type EvaluationsListProps = {
     pageSize: number;
     search: string;
     startDate: string;
+    workScheduleId: string;
   };
   totalItems: number;
   totalPages: number;
@@ -59,7 +58,7 @@ export function EvaluationsList({
       </div>
 
       <div className="border border-slate-200 bg-slate-50 p-4">
-        <AutoFilterForm className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.65fr)]">
+        <AutoFilterForm className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 items-end">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
@@ -84,6 +83,16 @@ export function EvaluationsList({
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="space-y-2 text-sm">
+            <span className="font-medium text-slate-700">Planning</span>
+            <input
+              name="workScheduleId"
+              defaultValue={filters.workScheduleId}
+              placeholder="ID planning"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
           </label>
 
           <label className="space-y-2 text-sm">
@@ -113,7 +122,7 @@ export function EvaluationsList({
               defaultValue={String(filters.pageSize)}
               className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             >
-              {[10, 20, 50].map(size => (
+              {[5, 10, 20, 50].map(size => (
                 <option key={size} value={size}>
                   {size}
                 </option>
@@ -121,7 +130,7 @@ export function EvaluationsList({
             </select>
           </label>
 
-          <div className="flex flex-wrap gap-2 lg:col-span-5">
+          <div className="flex flex-wrap gap-2 ">
             <Button asChild variant="outline">
               <Link href="/evaluations">Réinitialiser</Link>
             </Button>
@@ -140,7 +149,7 @@ export function EvaluationsList({
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             <TableRow>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Date
+                Planning
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 Personnel
@@ -149,7 +158,7 @@ export function EvaluationsList({
                 Critère
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Poids appliqué
+                Score
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 Saisi par
@@ -172,9 +181,8 @@ export function EvaluationsList({
             ) : null}
 
             {evaluations.map(evaluation => {
-              const appliedWeight = getEffectiveWeight(evaluation);
               const impactClasses =
-                evaluation.criteria.impact === "POSITIVE"
+                evaluation.criterion.impact === "POSITIVE"
                   ? "bg-emerald-100 text-emerald-700"
                   : "bg-amber-100 text-amber-700";
 
@@ -183,47 +191,44 @@ export function EvaluationsList({
                   <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                     <div>
                       <p className="font-medium text-slate-900">
-                        {formatDate(evaluation.evaluationDate)}
+                        {formatDate(evaluation.workSchedule.workDate)}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Saisie le {formatDate(evaluation.createdAt)}
+                        {evaluation.workSchedule.service.name}
                       </p>
                     </div>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                     <p className="font-medium text-slate-900">
-                      {evaluation.user.fullName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {roleLabel(evaluation.user.role)}
+                      {evaluation.evaluatedUser.fullName}
                     </p>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                     <p className="font-medium text-slate-900">
-                      {evaluation.criteria.name}
+                      {evaluation.criterion.name}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {impactLabel(evaluation.criteria.impact)}
+                      {impactLabel(evaluation.criterion.impact)}
                     </p>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                     <span
                       className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${impactClasses}`}
                     >
-                      {appliedWeight}
+                      {evaluation.score}
                     </span>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                     <p className="font-medium text-slate-900">
-                      {evaluation.recordedBy.fullName}
+                      {evaluation.evaluatingLeader.fullName}
                     </p>
                     <p className="text-xs text-slate-500">
-                      @{evaluation.recordedBy.username}
+                      @{evaluation.evaluatingLeader.username}
                     </p>
                   </TableCell>
                   <TableCell className="px-4 py-3 text-slate-700">
                     <div className="max-w-md whitespace-normal text-sm text-slate-700">
-                      {evaluation.notes}
+                      {evaluation.comment}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -314,6 +319,10 @@ function buildPageHref(filters: EvaluationsListProps["filters"], page: number) {
 
   if (filters.endDate) {
     params.set("to", filters.endDate);
+  }
+
+  if (filters.workScheduleId) {
+    params.set("workScheduleId", filters.workScheduleId);
   }
 
   params.set("pageSize", String(filters.pageSize));

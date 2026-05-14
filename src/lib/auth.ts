@@ -1,7 +1,6 @@
-import type { Role, Service } from "@/generated/prisma/enums";
+import type { MembershipRole, SystemRole } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
-import { canAccessPlatform } from "@/lib/authz";
 
 export type AuthenticationResult =
   | {
@@ -10,14 +9,15 @@ export type AuthenticationResult =
         id: string;
         username: string;
         fullName: string;
-        role: Role;
-        groupId: string | null;
-        groupService: Service | null;
+        systemRole: SystemRole;
         isActive: boolean;
+        activeAgencyId: string;
+        activeMembershipRole: MembershipRole;
       };
     }
   | { status: "invalid_credentials" }
-  | { status: "unauthorized_role" };
+  | { status: "unauthorized_role" }
+  | { status: "no_agency_access" };
 
 export async function authenticateUser(username: string, password: string) {
   const user = await prisma.user.findUnique({
@@ -26,15 +26,17 @@ export async function authenticateUser(username: string, password: string) {
       id: true,
       username: true,
       fullName: true,
-      role: true,
-      groupId: true,
-      group: {
-        select: {
-          service: true,
-        },
-      },
+      systemRole: true,
       password: true,
       isActive: true,
+      memberships: {
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: {
+          agencyId: true,
+          role: true,
+        },
+      },
     },
   });
 
@@ -48,11 +50,17 @@ export async function authenticateUser(username: string, password: string) {
     return { status: "invalid_credentials" } satisfies AuthenticationResult;
   }
 
-  if (!canAccessPlatform(user.role)) {
-    return { status: "unauthorized_role" } satisfies AuthenticationResult;
+  // Get the first active agency membership (preferred agency)
+  const firstMembership = user.memberships[0];
+  if (!firstMembership) {
+    return { status: "no_agency_access" } satisfies AuthenticationResult;
   }
 
-  if (user.role !== "admin" && !user.groupId) {
+  // Check if user can access platform with their membership role
+  const canAccess =
+    user.systemRole === "super_admin" || firstMembership.role !== "worker";
+
+  if (!canAccess) {
     return { status: "unauthorized_role" } satisfies AuthenticationResult;
   }
 
@@ -62,10 +70,10 @@ export async function authenticateUser(username: string, password: string) {
       id: user.id,
       username: user.username,
       fullName: user.fullName,
-      role: user.role,
-      groupId: user.groupId,
-      groupService: user.group?.service ?? null,
+      systemRole: user.systemRole,
       isActive: user.isActive,
+      activeAgencyId: firstMembership.agencyId,
+      activeMembershipRole: firstMembership.role,
     },
   } satisfies AuthenticationResult;
 }

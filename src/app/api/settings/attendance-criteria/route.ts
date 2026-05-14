@@ -1,43 +1,31 @@
 import { NextResponse } from "next/server";
-import type { AttendanceStatus } from "@/generated/prisma/enums";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
-
-const ALLOWED_STATUSES: AttendanceStatus[] = ["PRESENT", "ABSENT"];
-
-function isAllowedStatus(value: string): value is AttendanceStatus {
-  return ALLOWED_STATUSES.includes(value as AttendanceStatus);
-}
 
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || session.role !== "admin") {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
   try {
     const body = (await request.json()) as Partial<{
       criterionId: string;
-      status: string;
     }>;
 
     const criterionId = body.criterionId?.trim();
-    const status = body.status?.trim();
 
-    if (!criterionId || !status) {
+    if (!criterionId) {
       return NextResponse.json(
-        { error: "Le critère et le statut sont obligatoires." },
+        { error: "Le critère est obligatoire." },
         { status: 400 }
       );
     }
 
-    if (!isAllowedStatus(status)) {
-      return NextResponse.json({ error: "Statut invalide." }, { status: 400 });
-    }
-
     const criterion = await prisma.criterion.findUnique({
-      where: { id: criterionId },
+      where: { id: criterionId, agencyId: session.activeAgencyId },
       select: { id: true, isActive: true },
     });
 
@@ -50,20 +38,21 @@ export async function POST(request: Request) {
 
     const setting = await prisma.attendanceCriterionSetting.create({
       data: {
+        agencyId: session.activeAgencyId,
         criterionId,
-        status,
+        isEnabled: true,
         createdById: session.userId,
       },
       select: {
         id: true,
-        status: true,
+        isEnabled: true,
         createdAt: true,
         criterion: {
           select: {
             id: true,
             name: true,
             impact: true,
-            defaultWeight: true,
+            weight: true,
             maxDaily: true,
           },
         },
@@ -78,7 +67,7 @@ export async function POST(request: Request) {
           createdAt: setting.createdAt.toISOString(),
           criterion: {
             ...setting.criterion,
-            defaultWeight: setting.criterion.defaultWeight.toString(),
+            weight: setting.criterion.weight.toString(),
           },
         },
       },

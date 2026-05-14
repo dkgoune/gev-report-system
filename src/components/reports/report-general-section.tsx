@@ -1,5 +1,4 @@
-import type { ReportGroup } from "@/lib/report-records";
-import type { ReportFieldDefinition } from "@/lib/report-types";
+import type { ReportFieldDefinition } from "./report-general-fields";
 import {
   Select,
   SelectContent,
@@ -8,28 +7,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type WorkScheduleOption = {
+  id: string;
+  workDate: string;
+  serviceId: string;
+  serviceName: string;
+};
+
 type ReportGeneralSectionProps = {
   fields: ReportFieldDefinition[];
-  groups: ReportGroup[];
-  groupId: string;
-  isAdmin: boolean;
-  reportDate: string;
+  schedules: WorkScheduleOption[];
+  workScheduleId: string;
   values: Record<string, string>;
-  onGroupChange: (value: string) => void;
+  onWorkScheduleChange: (value: string) => void;
   onFieldChange: (fieldKey: string, value: string) => void;
-  onDateChange: (value: string) => void;
 };
 
 export function ReportGeneralSection({
   fields,
-  groups,
-  groupId,
-  isAdmin,
-  reportDate,
+  schedules,
+  workScheduleId,
   values,
-  onGroupChange,
+  onWorkScheduleChange,
   onFieldChange,
-  onDateChange,
 }: ReportGeneralSectionProps) {
   return (
     <section className="space-y-5 border border-slate-200 bg-white p-5 shadow-sm">
@@ -42,37 +42,25 @@ export function ReportGeneralSection({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <label className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">Date du rapport</span>
-          <input
-            type="date"
-            value={reportDate}
-            onChange={event => onDateChange(event.target.value)}
-            className="h-11 w-full border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
-            required
-          />
-        </label>
-
         <div className="space-y-2 text-sm">
-          <span className="font-medium text-slate-700">Groupe</span>
-          {isAdmin ? (
-            <Select value={groupId} onValueChange={onGroupChange}>
-              <SelectTrigger className="h-11 w-full bg-white text-sm">
-                <SelectValue placeholder="Choisir un groupe" />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex h-11 items-center border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700">
-              {groups.find(group => group.id === groupId)?.name ?? "Mon groupe"}
-            </div>
-          )}
+          <span className="font-medium text-slate-700">Planning</span>
+          <Select value={workScheduleId} onValueChange={onWorkScheduleChange}>
+            <SelectTrigger className="h-11 w-full bg-white text-sm">
+              <SelectValue placeholder="Choisir un planning" />
+            </SelectTrigger>
+            <SelectContent>
+              {schedules.map(schedule => (
+                <SelectItem key={schedule.id} value={schedule.id}>
+                  {new Date(schedule.workDate).toLocaleDateString("fr-FR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}{" "}
+                  {"-"} {schedule.serviceName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {fields.map(field => (

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   ArrowRight,
   ChartColumn,
@@ -9,7 +10,7 @@ import {
 } from "lucide-react";
 import { roleLabel } from "@/components/user-management/constants";
 import { Button } from "@/components/ui/button";
-import { type AnalyticsSnapshot } from "@/lib/analytics";
+import { type AnalyticsSnapshot } from "../../lib/analytics";
 import { buildRangeSearchParams } from "@/lib/analytics-range";
 import { AnalyticsRangeFilter } from "./analytics-range-filter";
 import { BreakdownBarChart, TrendChart } from "./analytics-charts";
@@ -63,7 +64,7 @@ function MetricCard({
           <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
           <p className="mt-2 text-sm text-slate-600">{description}</p>
         </div>
-        <div className="-full border border-slate-200 bg-white p-2 text-slate-700">
+        <div className="rounded-full border border-slate-200 bg-white p-2 text-slate-700">
           <Icon className="size-4" />
         </div>
       </div>
@@ -86,7 +87,7 @@ function SectionFrame({
   description,
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   description: string;
   id: string;
   title: string;
@@ -209,7 +210,7 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
             {snapshot.serviceBreakdown.map(item => (
               <div
                 key={item.service}
-                className="-lg border border-slate-200 bg-white p-3"
+                className="rounded-lg border border-slate-200 bg-white p-3"
               >
                 <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   {item.label}
@@ -287,7 +288,7 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <h2 className="text-3xl font-bold text-slate-900">Analytique</h2>
+        <h2 className="text-3xl font-bold text-slate-900">Analyse</h2>
         <p className="text-sm text-slate-600">
           Lecture détaillée des tendances d'exploitation et de performance.
         </p>

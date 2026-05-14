@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -20,9 +19,8 @@ import {
   ArrowUpDown,
   MoreHorizontal,
   Pencil,
-  Plus,
   RotateCcw,
-  Trash2,
+  Power,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -59,16 +57,15 @@ import {
 } from "@/components/ui/select";
 import { roleLabel, roleOptions } from "./constants";
 import type { UserItem } from "./types";
-import { serviceLabel } from "@/lib/services";
 
 type UsersListProps = {
   users: UserItem[];
   loading: boolean;
   search: string;
   isAdmin: boolean;
-  deletingId: string | null;
+  togglingId: string | null;
   onSearchChange: (value: string) => void;
-  onDelete: (user: UserItem) => Promise<void>;
+  onToggleActive: (user: UserItem) => Promise<void>;
 };
 
 export function UsersList({
@@ -76,16 +73,16 @@ export function UsersList({
   loading,
   search,
   isAdmin,
-  deletingId,
+  togglingId,
   onSearchChange,
-  onDelete,
+  onToggleActive,
 }: UsersListProps) {
   const router = useRouter();
   const [sorting, setSorting] = useState<SortingState>([
     { id: "fullName", desc: false },
   ]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [pendingDeleteUser, setPendingDeleteUser] = useState<UserItem | null>(
+  const [pendingStatusUser, setPendingStatusUser] = useState<UserItem | null>(
     null
   );
 
@@ -144,27 +141,6 @@ export function UsersList({
           </button>
         ),
         filterFn: "equalsString",
-      },
-      {
-        id: "group",
-        accessorFn: (user: UserItem) => user.group?.name || "Aucun groupe",
-        header: "Groupe",
-        cell: ({ row }: CellContext<UserItem, unknown>) => {
-          if (!row.original.group) {
-            return <span className="text-slate-500">Aucun groupe</span>;
-          }
-
-          return (
-            <div>
-              <p className="font-medium text-slate-900">
-                {row.original.group.name}
-              </p>
-              <p className="text-xs text-slate-500">
-                {serviceLabel(row.original.group.service)}
-              </p>
-            </div>
-          );
-        },
       },
       {
         id: "phone",
@@ -236,14 +212,17 @@ export function UsersList({
                 ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => setPendingDeleteUser(row.original)}
-                  disabled={deletingId === row.original.id}
+                  onSelect={() => setPendingStatusUser(row.original)}
+                  disabled={togglingId === row.original.id}
                 >
-                  <Trash2 />
-                  {deletingId === row.original.id
-                    ? "Suppression..."
-                    : "Supprimer"}
+                  <Power />
+                  {togglingId === row.original.id
+                    ? row.original.isActive
+                      ? "Désactivation..."
+                      : "Réactivation..."
+                    : row.original.isActive
+                      ? "Désactiver"
+                      : "Réactiver"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -251,7 +230,7 @@ export function UsersList({
         ),
       },
     ],
-    [deletingId, isAdmin, router]
+    [isAdmin, router, togglingId]
   );
 
   // TanStack Table manages imperative table helpers internally; this lint rule is a compiler advisory, not a runtime issue here.
@@ -295,7 +274,7 @@ export function UsersList({
             <input
               value={search}
               onChange={event => onSearchChange(event.target.value)}
-              placeholder="Rechercher par nom, username, rôle ou groupe"
+              placeholder="Rechercher par nom, username, rôle ou téléphone"
               className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
@@ -450,44 +429,53 @@ export function UsersList({
       </div>
 
       <AlertDialog
-        open={Boolean(pendingDeleteUser)}
+        open={Boolean(pendingStatusUser)}
         onOpenChange={open => {
           if (!open) {
-            setPendingDeleteUser(null);
+            setPendingStatusUser(null);
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce personnel ?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {pendingStatusUser?.isActive
+                ? "Désactiver ce personnel ?"
+                : "Réactiver ce personnel ?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDeleteUser
-                ? `Le compte de ${pendingDeleteUser.fullName} sera supprimé définitivement.`
-                : "Cette action est irréversible."}
+              {pendingStatusUser
+                ? pendingStatusUser.isActive
+                  ? `Le compte de ${pendingStatusUser.fullName} sera marqué inactif et ne pourra plus accéder au système.`
+                  : `Le compte de ${pendingStatusUser.fullName} sera réactivé et pourra à nouveau accéder au système.`
+                : "Cette action modifie uniquement le statut du compte."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(deletingId)}>
+            <AlertDialogCancel disabled={Boolean(togglingId)}>
               Annuler
             </AlertDialogCancel>
             <AlertDialogAction
-              variant="destructive"
               disabled={
-                !pendingDeleteUser || deletingId === pendingDeleteUser?.id
+                !pendingStatusUser || togglingId === pendingStatusUser.id
               }
               onClick={() => {
-                if (!pendingDeleteUser) {
+                if (!pendingStatusUser) {
                   return;
                 }
 
-                void onDelete(pendingDeleteUser).finally(() => {
-                  setPendingDeleteUser(null);
+                void onToggleActive(pendingStatusUser).finally(() => {
+                  setPendingStatusUser(null);
                 });
               }}
             >
-              {pendingDeleteUser && deletingId === pendingDeleteUser.id
-                ? "Suppression..."
-                : "Supprimer"}
+              {pendingStatusUser && togglingId === pendingStatusUser.id
+                ? pendingStatusUser.isActive
+                  ? "Désactivation..."
+                  : "Réactivation..."
+                : pendingStatusUser?.isActive
+                  ? "Désactiver"
+                  : "Réactiver"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

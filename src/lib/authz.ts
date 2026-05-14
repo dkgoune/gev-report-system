@@ -1,35 +1,86 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { MembershipRole } from "@/generated/prisma/enums";
+import type { SessionPayload } from "@/lib/session";
 
-const PLATFORM_ROLES = new Set<Role>(["admin", "leader", "subleader"]);
+const ADMIN_MEMBERSHIP_ROLES = new Set<MembershipRole>(["admin"]);
 
-const ADMIN_ROLES = new Set<Role>(["admin"]);
+const SCHEDULER_OR_ADMIN_MEMBERSHIP_ROLES = new Set<MembershipRole>([
+  "admin",
+  "scheduler",
+]);
 
-const EVALUATION_ROLES = new Set<Role>(["admin", "leader", "subleader"]);
+const REPORTER_OR_HIGHER_MEMBERSHIP_ROLES = new Set<MembershipRole>([
+  "admin",
+  "scheduler",
+  "reporter",
+]);
 
-export function canAccessPlatform(role: Role): boolean {
-  return PLATFORM_ROLES.has(role);
+const LEADERSHIP_ROLES = new Set<MembershipRole>([
+  "admin",
+  "scheduler",
+  "reporter",
+]);
+
+/**
+ * Check if user can access the agency platform at all
+ */
+export function canAccessPlatform(session: SessionPayload): boolean {
+  return isSuperAdmin(session) || session.activeMembershipRole !== "worker";
 }
 
-export function isAdminRole(role: Role): boolean {
-  return ADMIN_ROLES.has(role);
+/**
+ * Check if user is admin within their agency
+ */
+export function isAgencyAdmin(session: SessionPayload): boolean {
+  return ADMIN_MEMBERSHIP_ROLES.has(session.activeMembershipRole);
 }
 
-export function canAccessAdminWorkspace(role: Role): boolean {
-  return isAdminRole(role);
+/**
+ * Check if user is super admin globally
+ */
+export function isSuperAdmin(session: SessionPayload): boolean {
+  return session.systemRole === "super_admin";
 }
 
-export function canCreateEvaluations(role: Role): boolean {
-  return EVALUATION_ROLES.has(role);
+/**
+ * Check if user can access admin workspace for their agency
+ */
+export function canAccessAgencyAdminWorkspace(
+  session: SessionPayload
+): boolean {
+  return isSuperAdmin(session) || isAgencyAdmin(session);
 }
 
-export function canViewReportHistory(role: Role): boolean {
-  return role === "admin" || role === "leader";
+/**
+ * Check if user is in a leadership position (admin, scheduler, or reporter)
+ */
+export function hasLeadershipRole(session: SessionPayload): boolean {
+  return LEADERSHIP_ROLES.has(session.activeMembershipRole);
 }
 
-export function canMarkReportsAsRead(role: Role): boolean {
-  return role === "admin" || role === "leader";
+/**
+ * Check if user can schedule work (admin or scheduler)
+ */
+export function canScheduleWork(session: SessionPayload): boolean {
+  return SCHEDULER_OR_ADMIN_MEMBERSHIP_ROLES.has(session.activeMembershipRole);
 }
 
-export function canCreateReports(role: Role): boolean {
-  return role === "admin" || role === "leader" || role === "subleader";
+/**
+ * Check if user can create reports (reporter, scheduler, or admin)
+ */
+export function canCreateReports(session: SessionPayload): boolean {
+  return REPORTER_OR_HIGHER_MEMBERSHIP_ROLES.has(session.activeMembershipRole);
+}
+
+/**
+ * Check if user can mark reports as read (leadership roles)
+ */
+export function canMarkReportsAsRead(session: SessionPayload): boolean {
+  return LEADERSHIP_ROLES.has(session.activeMembershipRole);
+}
+
+/**
+ * Check if user can create evaluations (leadership roles)
+ */
+export function canCreateEvaluations(session: SessionPayload): boolean {
+  return LEADERSHIP_ROLES.has(session.activeMembershipRole);
 }

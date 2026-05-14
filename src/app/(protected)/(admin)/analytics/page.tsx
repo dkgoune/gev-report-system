@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { AnalyticsSurface } from "@/components/analytics/analytics-surfaces";
-import { getAnalyticsSnapshot } from "@/lib/analytics";
+import { getAnalyticsSnapshot } from "../../../../lib/analytics";
 import { resolveAnalyticsRange } from "@/lib/analytics-range";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { getServerSession } from "@/lib/session";
 
 type AnalyticsPageProps = {
@@ -22,7 +22,7 @@ export default async function AnalyticsPage({
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 

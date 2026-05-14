@@ -123,18 +123,20 @@ export function CriterionEditorForm({
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700">Poids par défaut</span>
+            <span className="font-medium text-slate-700">Poids</span>
             <input
               type="number"
+              min="0"
               step="0.01"
-              value={formState.defaultWeight}
+              value={formState.weight}
               onChange={event =>
                 setFormState(current => ({
                   ...current,
-                  defaultWeight: event.target.value,
+                  weight: event.target.value,
                 }))
               }
               className="w-full border border-slate-300 px-3 py-2"
+              placeholder="Ex: 1.00"
               required
             />
           </label>
@@ -155,7 +157,8 @@ export function CriterionEditorForm({
                 }))
               }
               className="w-full border border-slate-300 px-3 py-2"
-              placeholder="Laisser vide pour aucune limite"
+              placeholder="Ex: 1"
+              required
             />
             <span className="block text-xs text-slate-500">
               Nombre maximum d'evaluations appliquees par jour pour un meme
@@ -163,7 +166,7 @@ export function CriterionEditorForm({
             </span>
           </label>
 
-          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm md:col-span-2">
+          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm h-fit md:mt-5">
             <input
               type="checkbox"
               checked={formState.isActive}

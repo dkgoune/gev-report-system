@@ -1,36 +1,71 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { Role, Service } from "@/generated/prisma/enums";
-import type {
-  GeneralSubReportEntry,
-  GeneralSubReportSection,
-} from "@/lib/general-report-subreports";
-import type { ReportGroup } from "@/lib/report-records";
-import type { ReportFieldDefinition } from "@/lib/report-types";
+import type { MembershipRole } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
+import type { ReportFieldDefinition } from "./report-general-fields";
+import {
+  ReportBoundIncidentSection,
+  type BoundIncidentSection,
+} from "./report-bound-incident-section";
 import { ReportAttendanceSection } from "./report-attendance-section";
 import { ReportGeneralSection } from "./report-general-section";
-import { ReportIncidentTableSection } from "./report-incident-table-section";
 
 type PersonnelOption = {
   id: string;
   fullName: string;
-  groupId: string | null;
-  role: Role;
+  role: MembershipRole;
   username: string;
+};
+
+type WorkScheduleOption = {
+  id: string;
+  workDate: string;
+  serviceId: string;
+  serviceName: string;
+};
+
+type BindingFieldValidation = {
+  minLength: number | null;
+  maxLength: number | null;
+  pattern: string | null;
+  minValue: number | null;
+  maxValue: number | null;
+};
+
+type BindingFieldDefinition = {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  placeholder: string | null;
+  options: string[];
+  validation: BindingFieldValidation;
+};
+
+type BindingPayloadItem = {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  serviceCode: string | null;
+  templateId: string;
+  templateName: string;
+  templateVersionId: string;
+  templateVersionNumber: number;
+  minEntries: number;
+  maxEntries: number | null;
+  isRequired: boolean;
+  isActive: boolean;
+  templateVersionFields: BindingFieldDefinition[];
 };
 
 type ReportCreationManagerProps = {
   generalFields: ReportFieldDefinition[];
-  groupsByService: Record<string, ReportGroup[]>;
-  initialDate: string;
-  initialGroupId: string;
-  isAdmin: boolean;
-  personnelByService: Record<string, PersonnelOption[]>;
-  sectionsByService: Record<string, GeneralSubReportSection[]>;
+  schedules: WorkScheduleOption[];
+  initialWorkScheduleId: string;
+  personnelBySchedule: Record<string, PersonnelOption[]>;
 };
 
 function createInitialFieldValues(fields: ReportFieldDefinition[]) {
@@ -46,52 +81,40 @@ function buildPresentIds(personnel: PersonnelOption[]) {
 
 export function ReportCreationManager({
   generalFields,
-  groupsByService,
-  initialDate,
-  initialGroupId,
-  isAdmin,
-  personnelByService,
-  sectionsByService,
+  schedules,
+  initialWorkScheduleId,
+  personnelBySchedule,
 }: ReportCreationManagerProps) {
   const router = useRouter();
-  const groups = useMemo(
-    () => Object.values(groupsByService).flat(),
-    [groupsByService]
-  );
-  const initialGroup =
-    groups.find(group => group.id === initialGroupId) ?? groups[0] ?? null;
-  const initialService = initialGroup?.service ?? ("envoi" as Service);
-  const initialScopedPersonnel = (
-    personnelByService[initialService] ?? []
-  ).filter(user => (initialGroupId ? user.groupId === initialGroupId : true));
-  const initialPresentIds = buildPresentIds(initialScopedPersonnel);
+  const initialPersonnel = personnelBySchedule[initialWorkScheduleId] ?? [];
+  const initialPresentIds = buildPresentIds(initialPersonnel);
   const defaultFieldValues = useMemo(
     () => createInitialFieldValues(generalFields),
     [generalFields]
   );
-  const [reportDate, setReportDate] = useState(initialDate);
-  const [groupId, setGroupId] = useState(initialGroupId);
+  const [workScheduleId, setWorkScheduleId] = useState(initialWorkScheduleId);
   const [fieldValues, setFieldValues] =
     useState<Record<string, string>>(defaultFieldValues);
   const [presentIds, setPresentIds] = useState<string[]>(initialPresentIds);
-  const [subReports, setSubReports] = useState<
-    Partial<Record<string, GeneralSubReportEntry[]>>
+  const [boundSectionsByService, setBoundSectionsByService] = useState<
+    Partial<Record<string, BoundIncidentSection[]>>
+  >({});
+  const [boundIncidentEntries, setBoundIncidentEntries] = useState<
+    Partial<Record<string, Record<string, string | boolean>[]>>
   >({});
   const [submitting, setSubmitting] = useState(false);
 
-  const currentGroup =
-    groups.find(group => group.id === groupId) ?? initialGroup;
-  const service = currentGroup?.service ?? initialService;
-  const effectiveGroupId = currentGroup?.id ?? "";
-  const currentPersonnel = useMemo(
-    () =>
-      (personnelByService[service] ?? []).filter(user =>
-        effectiveGroupId ? user.groupId === effectiveGroupId : true
-      ),
-    [effectiveGroupId, personnelByService, service]
+  const selectedSchedule = useMemo(
+    () => schedules.find(schedule => schedule.id === workScheduleId) ?? null,
+    [schedules, workScheduleId]
   );
-  const currentGroups = useMemo(() => groups, [groups]);
-  const currentSections = sectionsByService[service] ?? [];
+
+  const serviceId = selectedSchedule?.serviceId ?? "";
+
+  const currentPersonnel = useMemo(
+    () => personnelBySchedule[workScheduleId] ?? [],
+    [personnelBySchedule, workScheduleId]
+  );
 
   const absentIds = useMemo(
     () =>
@@ -101,32 +124,93 @@ export function ReportCreationManager({
     [currentPersonnel, presentIds]
   );
 
-  function handleGroupChange(nextGroupId: string) {
-    const nextGroup = groups.find(group => group.id === nextGroupId);
-    const nextService = nextGroup?.service ?? service;
-    setGroupId(nextGroupId);
+  function handleWorkScheduleChange(nextWorkScheduleId: string) {
+    setWorkScheduleId(nextWorkScheduleId);
     setPresentIds(
-      buildPresentIds(
-        (personnelByService[nextService] ?? []).filter(user =>
-          nextGroupId ? user.groupId === nextGroupId : true
-        )
-      )
+      buildPresentIds(personnelBySchedule[nextWorkScheduleId] ?? [])
     );
-    setSubReports({});
   }
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBoundSections() {
+      const response = await fetch("/api/incidents/bindings", {
+        method: "GET",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        bindings?: BindingPayloadItem[];
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        if (!cancelled) {
+          toast.error(
+            payload?.error || "Impossible de charger les incidents lies."
+          );
+        }
+        return;
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      const grouped = (payload?.bindings ?? []).reduce<
+        Partial<Record<string, BoundIncidentSection[]>>
+      >((acc, binding) => {
+        if (!binding.isActive) {
+          return acc;
+        }
+
+        const section: BoundIncidentSection = {
+          bindingId: binding.id,
+          templateId: binding.templateId,
+          templateName: binding.templateName,
+          templateVersionNumber: binding.templateVersionNumber,
+          fields: binding.templateVersionFields,
+          minEntries: binding.minEntries,
+          maxEntries: binding.maxEntries,
+          isRequired: binding.isRequired,
+        };
+
+        acc[binding.serviceId] = [...(acc[binding.serviceId] ?? []), section];
+        return acc;
+      }, {});
+
+      setBoundSectionsByService(grouped);
+      setBoundIncidentEntries(current => {
+        const next = { ...current };
+
+        for (const sections of Object.values(grouped)) {
+          if (!sections) {
+            continue;
+          }
+          for (const section of sections) {
+            if (!next[section.bindingId]) {
+              next[section.bindingId] = [];
+            }
+          }
+        }
+
+        return next;
+      });
+    }
+
+    void loadBoundSections();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function handleReset() {
-    setReportDate(initialDate);
-    setGroupId(initialGroupId);
+    setWorkScheduleId(initialWorkScheduleId);
     setFieldValues(defaultFieldValues);
     setPresentIds(
-      buildPresentIds(
-        (personnelByService[initialService] ?? []).filter(user =>
-          initialGroupId ? user.groupId === initialGroupId : true
-        )
-      )
+      buildPresentIds(personnelBySchedule[initialWorkScheduleId] ?? [])
     );
-    setSubReports({});
+    setBoundIncidentEntries({});
   }
 
   function togglePresent(userId: string, checked: boolean) {
@@ -148,22 +232,130 @@ export function ReportCreationManager({
       return;
     }
 
+    const activeBoundSections = boundSectionsByService[serviceId] ?? [];
+
+    for (const section of activeBoundSections) {
+      const entries = boundIncidentEntries[section.bindingId] ?? [];
+
+      if (section.isRequired && entries.length < section.minEntries) {
+        toast.error(
+          `${section.templateName}: minimum ${section.minEntries} entree(s) requise(s).`
+        );
+        return;
+      }
+
+      if (section.maxEntries !== null && entries.length > section.maxEntries) {
+        toast.error(
+          `${section.templateName}: maximum ${section.maxEntries} entree(s) autorisee(s).`
+        );
+        return;
+      }
+
+      for (const entry of entries) {
+        for (const field of section.fields) {
+          const rawValue = entry[field.key];
+
+          if (field.required) {
+            const missing =
+              typeof rawValue === "boolean"
+                ? rawValue !== true
+                : String(rawValue ?? "").trim().length === 0;
+            if (missing) {
+              toast.error(
+                `${section.templateName}: ${field.label} est obligatoire.`
+              );
+              return;
+            }
+          }
+
+          if (typeof rawValue === "string") {
+            const value = rawValue.trim();
+
+            if (
+              field.validation.minLength !== null &&
+              value.length < field.validation.minLength
+            ) {
+              toast.error(
+                `${section.templateName}: ${field.label} doit contenir au moins ${field.validation.minLength} caracteres.`
+              );
+              return;
+            }
+
+            if (
+              field.validation.maxLength !== null &&
+              value.length > field.validation.maxLength
+            ) {
+              toast.error(
+                `${section.templateName}: ${field.label} depasse ${field.validation.maxLength} caracteres.`
+              );
+              return;
+            }
+
+            if (field.validation.pattern && value) {
+              try {
+                const regex = new RegExp(field.validation.pattern);
+                if (!regex.test(value)) {
+                  toast.error(
+                    `${section.templateName}: ${field.label} ne respecte pas le format attendu.`
+                  );
+                  return;
+                }
+              } catch {
+                toast.error(
+                  `${section.templateName}: regex invalide sur ${field.label}.`
+                );
+                return;
+              }
+            }
+
+            if (field.type === "number" && value) {
+              const numberValue = Number(value);
+              if (!Number.isFinite(numberValue)) {
+                toast.error(
+                  `${section.templateName}: ${field.label} doit etre numerique.`
+                );
+                return;
+              }
+
+              if (
+                field.validation.minValue !== null &&
+                numberValue < field.validation.minValue
+              ) {
+                toast.error(
+                  `${section.templateName}: ${field.label} doit etre >= ${field.validation.minValue}.`
+                );
+                return;
+              }
+
+              if (
+                field.validation.maxValue !== null &&
+                numberValue > field.validation.maxValue
+              ) {
+                toast.error(
+                  `${section.templateName}: ${field.label} doit etre <= ${field.validation.maxValue}.`
+                );
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+
     setSubmitting(true);
 
     const response = await fetch("/api/reports/general", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        groupId: effectiveGroupId,
-        reportDate,
-        service,
+        workScheduleId,
         ...fieldValues,
         presentPersonnelIds: presentIds,
         absentPersonnelIds: absentIds,
-        subReports: Object.fromEntries(
-          currentSections.map(section => [
-            section.slug,
-            subReports[section.slug] ?? [],
+        incidentEntries: Object.fromEntries(
+          activeBoundSections.map(section => [
+            section.bindingId,
+            boundIncidentEntries[section.bindingId] ?? [],
           ])
         ),
       }),
@@ -190,16 +382,13 @@ export function ReportCreationManager({
     <form className="space-y-6" onSubmit={onSubmit}>
       <ReportGeneralSection
         fields={generalFields}
-        groups={currentGroups}
-        groupId={effectiveGroupId}
-        isAdmin={isAdmin}
-        reportDate={reportDate}
+        schedules={schedules}
+        workScheduleId={workScheduleId}
         values={fieldValues}
-        onGroupChange={handleGroupChange}
+        onWorkScheduleChange={handleWorkScheduleChange}
         onFieldChange={(fieldKey, value) =>
           setFieldValues(current => ({ ...current, [fieldKey]: value }))
         }
-        onDateChange={setReportDate}
       />
 
       <ReportAttendanceSection
@@ -211,21 +400,20 @@ export function ReportCreationManager({
       <section className="space-y-4">
         <div className="space-y-2">
           <p className="text-xs font-semibold tracking-[0.16em] text-teal-700 uppercase">
-            Rapports specifiques
+            Incidents liés
           </p>
         </div>
 
         <div className="space-y-5">
-          {currentSections.map(section => (
-            <ReportIncidentTableSection
-              key={`${service}-${section.slug}`}
-              entries={subReports[section.slug] ?? []}
+          {(boundSectionsByService[serviceId] ?? []).map(section => (
+            <ReportBoundIncidentSection
+              key={`binding-${section.bindingId}`}
               section={section}
-              service={service}
+              entries={boundIncidentEntries[section.bindingId] ?? []}
               onEntriesChange={entries =>
-                setSubReports(current => ({
+                setBoundIncidentEntries(current => ({
                   ...current,
-                  [section.slug]: entries,
+                  [section.bindingId]: entries,
                 }))
               }
             />

@@ -46,7 +46,7 @@ export function CriteriaManager({ initialCriteria }: CriteriaManagerProps) {
       return (
         criterion.name.toLowerCase().includes(term) ||
         impactLabel(criterion.impact).toLowerCase().includes(term) ||
-        criterion.defaultWeight.toLowerCase().includes(term) ||
+        criterion.weight.toLowerCase().includes(term) ||
         String(criterion.maxDaily ?? "illimite")
           .toLowerCase()
           .includes(term)

@@ -36,7 +36,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Accès refusé. Seuls les comptes admin et leaders peuvent se connecter.",
+            "Accès refusé. Votre rôle actuel ne permet pas l'accès à la plateforme.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (result.status === "no_agency_access") {
+      return NextResponse.json(
+        {
+          error:
+            "Aucune agence active n'est associée à ce compte. Contactez un administrateur.",
         },
         { status: 403 }
       );
@@ -47,9 +57,9 @@ export async function POST(request: Request) {
     const token = createSessionToken({
       userId: user.id,
       username: user.username,
-      role: user.role,
-      groupId: user.groupId,
-      groupService: user.groupService,
+      systemRole: user.systemRole,
+      activeAgencyId: user.activeAgencyId,
+      activeMembershipRole: user.activeMembershipRole,
     });
 
     const cookieStore = await cookies();
@@ -68,9 +78,9 @@ export async function POST(request: Request) {
         id: user.id,
         username: user.username,
         fullName: user.fullName,
-        role: user.role,
-        groupId: user.groupId,
-        groupService: user.groupService,
+        systemRole: user.systemRole,
+        activeAgencyId: user.activeAgencyId,
+        activeMembershipRole: user.activeMembershipRole,
       },
     });
   } catch {

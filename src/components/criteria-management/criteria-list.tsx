@@ -105,7 +105,7 @@ export function CriteriaList({
         cell: ({ row }: CellContext<CriterionItem, unknown>) => {
           const label = impactLabel(row.original.impact);
           const classes =
-            row.original.impact === "POSITIVE"
+            row.original.impact === "POSITIVE" || row.original.impact === "high"
               ? "bg-emerald-100 text-emerald-700"
               : "bg-amber-100 text-amber-700";
 
@@ -119,7 +119,7 @@ export function CriteriaList({
         },
       },
       {
-        accessorKey: "defaultWeight",
+        accessorKey: "weight",
         header: ({ column }: HeaderContext<CriterionItem, unknown>) => (
           <button
             type="button"
@@ -131,7 +131,7 @@ export function CriteriaList({
           </button>
         ),
         cell: ({ row }: CellContext<CriterionItem, unknown>) =>
-          row.original.defaultWeight,
+          row.original.weight,
       },
       {
         id: "maxDaily",

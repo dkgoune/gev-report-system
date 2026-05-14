@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { CriteriaManager } from "@/components/criteria-management/criteria-manager";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -11,17 +11,20 @@ export default async function CriteriaPage() {
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const criteria = await prisma.criterion.findMany({
+    where: {
+      agencyId: session.activeAgencyId,
+    },
     orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
       name: true,
       impact: true,
-      defaultWeight: true,
+      weight: true,
       maxDaily: true,
       isActive: true,
       createdAt: true,
@@ -31,7 +34,7 @@ export default async function CriteriaPage() {
 
   const initialCriteria = criteria.map(criterion => ({
     ...criterion,
-    defaultWeight: criterion.defaultWeight.toString(),
+    weight: criterion.weight.toString(),
     createdAt: criterion.createdAt.toISOString(),
   }));
 

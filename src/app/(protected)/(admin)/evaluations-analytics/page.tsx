@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { EvaluationsAnalyticsSurface } from "../../../../components/analytics/evaluations-analytics-surface";
 import { resolveAnalyticsRange } from "@/lib/analytics-range";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { getEvaluationsAnalyticsSnapshot } from "@/lib/evaluations-analytics";
 import { getServerSession } from "@/lib/session";
 
@@ -22,7 +22,7 @@ export default async function EvaluationsAnalyticsPage({
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 

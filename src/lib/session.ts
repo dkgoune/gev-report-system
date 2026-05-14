@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import type { Role, Service } from "@/generated/prisma/enums";
+import type { SystemRole, MembershipRole } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "gev_session";
@@ -9,9 +9,9 @@ const SESSION_TTL_SECONDS = 60 * 60 * 12;
 type SessionPayload = {
   userId: string;
   username: string;
-  role: Role;
-  groupId: string | null;
-  groupService: Service | null;
+  systemRole: SystemRole;
+  activeAgencyId: string;
+  activeMembershipRole: MembershipRole;
   exp: number;
 };
 
@@ -79,9 +79,9 @@ export function verifySessionToken(token: string): SessionPayload | null {
     if (
       !payload.userId ||
       !payload.username ||
-      !payload.role ||
-      typeof payload.groupId === "undefined" ||
-      typeof payload.groupService === "undefined" ||
+      !payload.systemRole ||
+      !payload.activeAgencyId ||
+      !payload.activeMembershipRole ||
       !payload.exp
     ) {
       return null;
@@ -116,24 +116,12 @@ export async function getServerSession(): Promise<SessionPayload | null> {
     where: { id: session.userId },
     select: {
       id: true,
-      role: true,
-      groupId: true,
-      group: {
-        select: {
-          service: true,
-        },
-      },
+      systemRole: true,
       isActive: true,
     },
   });
 
-  if (
-    !user ||
-    !user.isActive ||
-    user.role !== session.role ||
-    user.groupId !== session.groupId ||
-    (user.group?.service ?? null) !== session.groupService
-  ) {
+  if (!user || !user.isActive || user.systemRole !== session.systemRole) {
     return null;
   }
 

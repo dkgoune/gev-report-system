@@ -2,16 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -21,19 +14,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type AttendanceStatus = "PRESENT" | "ABSENT";
-
 type AttendanceCriterionOption = {
   id: string;
   name: string;
-  impact: "POSITIVE" | "NEGATIVE";
-  defaultWeight: string;
+  impact: "high" | "low";
+  weight: string;
   maxDaily: number | null;
 };
 
 type AttendanceCriterionSettingItem = {
   id: string;
-  status: AttendanceStatus;
+  isEnabled: boolean;
   createdAt: string;
   criterion: AttendanceCriterionOption;
 };
@@ -43,10 +34,9 @@ type AttendanceCriteriaSettingsProps = {
   initialSettings: AttendanceCriterionSettingItem[];
 };
 
-const statusOptions: Array<{ value: AttendanceStatus; label: string }> = [
-  { value: "PRESENT", label: "Présent" },
-  { value: "ABSENT", label: "Absent" },
-];
+function impactLabel(impact: AttendanceCriterionOption["impact"]) {
+  return impact === "high" ? "Positif" : "Négatif";
+}
 
 export function AttendanceCriteriaSettings({
   initialCriteria,
@@ -55,14 +45,14 @@ export function AttendanceCriteriaSettings({
   const [criteria] = useState(initialCriteria);
   const [settings, setSettings] = useState(initialSettings);
   const [criterionId, setCriterionId] = useState("");
-  const [status, setStatus] = useState<AttendanceStatus>("PRESENT");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const criterionOptions = useMemo(() => {
     return criteria.map(criterion => ({
       value: criterion.id,
-      label: `${criterion.name} (${criterion.impact}, ${criterion.defaultWeight})`,
+      label: `${criterion.name} (${impactLabel(criterion.impact)}, ${criterion.weight})`,
       keywords: [criterion.name, criterion.impact],
     }));
   }, [criteria]);
@@ -80,7 +70,7 @@ export function AttendanceCriteriaSettings({
     const response = await fetch("/api/settings/attendance-criteria", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ criterionId, status }),
+      body: JSON.stringify({ criterionId }),
     });
 
     const payload = (await response.json().catch(() => null)) as {
@@ -99,9 +89,40 @@ export function AttendanceCriteriaSettings({
       ...current,
     ]);
     setCriterionId("");
-    setStatus("PRESENT");
     setSubmitting(false);
     toast.success("Règle automatique enregistrée.");
+  }
+
+  async function onToggleEnabled(setting: AttendanceCriterionSettingItem) {
+    setUpdatingId(setting.id);
+
+    const response = await fetch(
+      `/api/settings/attendance-criteria/${setting.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isEnabled: !setting.isEnabled }),
+      }
+    );
+
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+      setting?: AttendanceCriterionSettingItem;
+    } | null;
+
+    if (!response.ok || !payload?.setting) {
+      toast.error(payload?.error || "Impossible de mettre à jour cette règle.");
+      setUpdatingId(null);
+      return;
+    }
+
+    setSettings(current =>
+      current.map(item => (item.id === setting.id ? payload.setting! : item))
+    );
+    setUpdatingId(null);
+    toast.success(
+      payload.setting.isEnabled ? "Règle activée." : "Règle désactivée."
+    );
   }
 
   async function onDelete(id: string) {
@@ -141,7 +162,7 @@ export function AttendanceCriteriaSettings({
 
       <section className="border border-slate-200 bg-slate-50 p-4">
         <form
-          className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_220px_auto] md:items-end"
+          className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_auto] md:items-end"
           onSubmit={onSubmit}
         >
           <label className="space-y-2 text-sm">
@@ -154,25 +175,6 @@ export function AttendanceCriteriaSettings({
               searchPlaceholder="Rechercher un critère"
               emptyMessage="Aucun critère disponible."
             />
-          </label>
-
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-700">Appliquer à</span>
-            <Select
-              value={status}
-              onValueChange={value => setStatus(value as AttendanceStatus)}
-            >
-              <SelectTrigger className="w-full bg-white text-sm">
-                <SelectValue placeholder="Choisir un statut" />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </label>
 
           <Button type="submit" disabled={submitting}>
@@ -189,7 +191,7 @@ export function AttendanceCriteriaSettings({
                 Critère
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Statut
+                État
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 Poids
@@ -220,25 +222,51 @@ export function AttendanceCriteriaSettings({
                   {setting.criterion.name}
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  {setting.status === "PRESENT" ? "Présent" : "Absent"}
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                      setting.isEnabled
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {setting.isEnabled ? "Actif" : "Inactif"}
+                  </span>
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  {setting.criterion.defaultWeight}
+                  {setting.criterion.weight}
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                   {setting.criterion.maxDaily ?? "Illimité"}
                 </TableCell>
                 <TableCell className="px-4 py-3 whitespace-nowrap">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={deletingId === setting.id}
-                    onClick={() => void onDelete(setting.id)}
-                  >
-                    <Trash2 />
-                    {deletingId === setting.id ? "Suppression..." : "Supprimer"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={updatingId === setting.id}
+                      onClick={() => void onToggleEnabled(setting)}
+                    >
+                      <Power />
+                      {updatingId === setting.id
+                        ? "Mise a jour..."
+                        : setting.isEnabled
+                          ? "Désactiver"
+                          : "Activer"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={deletingId === setting.id}
+                      onClick={() => void onDelete(setting.id)}
+                    >
+                      <Trash2 />
+                      {deletingId === setting.id
+                        ? "Suppression..."
+                        : "Supprimer"}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

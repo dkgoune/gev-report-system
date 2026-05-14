@@ -1,610 +1,337 @@
-import type { Role } from "@/generated/prisma/enums";
-import { canAccessPlatform } from "@/lib/authz";
+import type { Prisma } from "@/generated/prisma/client";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/session";
-import { buildScopedUserWhere } from "@/lib/user-scope";
 
-export const SIGNATURE_PAGE_SIZES = [10, 20, 50] as const;
-
-const SIGNATURE_SIGNER_ROLES: Role[] = [
-  "admin",
-  "leader",
-  "subleader",
-  "agent",
-];
-
-export type SignatureAgentOption = {
-  id: string;
-  fullName: string;
-  groupId: string;
-  groupName: string;
-  role: Role;
-  username: string;
-};
-
-export type SignatureLogItem = {
-  busArrivalTime: string | null;
-  createdAt: string;
-  group: {
-    id: string;
-    name: string;
-  };
-  id: string;
-  signedAt: string | null;
-  slipNumber: string;
-  user: SignatureAgentOption;
-};
-
-export type SignatureLogFilters = {
-  endDate: string;
-  groupId: string;
-  page: number;
-  pageSize: number;
-  search: string;
-  startDate: string;
-  userId: string;
-};
-
-export type SignatureLogListPayload = {
-  signers: SignatureAgentOption[];
-  groups: Array<{
-    id: string;
-    name: string;
-  }>;
-  filters: SignatureLogFilters;
-  pagination: {
-    page: number;
-    pageSize: number;
-    totalItems: number;
-    totalPages: number;
-  };
-  signatures: SignatureLogItem[];
-  summary: {
-    activeSigners: number;
-    monthCount: number;
-    todayCount: number;
-    totalItems: number;
-  };
-};
-
-export type SignatureFormState = {
-  busArrivalTime: string;
-  signedAt: string;
-  slipNumber: string;
-  userId: string;
-};
-
-type SignatureListQuery = {
+type SignatureLogQuery = {
   from?: string;
-  groupId?: string;
   page?: string;
   pageSize?: string;
   q?: string;
   to?: string;
   userId?: string;
+  workScheduleId?: string;
 };
 
-const signatureSelect = {
-  busArrivalTime: true,
-  id: true,
-  slipNumber: true,
-  signedAt: true,
-  createdAt: true,
-  group: {
-    select: {
-      id: true,
-      name: true,
-    },
-  },
-  user: {
-    select: {
-      id: true,
-      fullName: true,
-      groupId: true,
-      group: {
-        select: {
-          name: true,
-        },
-      },
-      role: true,
-      username: true,
-    },
-  },
+type SignatureLogInput = {
+  busArrivalTime?: string;
+  signedAt?: string;
+  slipNumber?: string;
+  userId?: string;
+  workScheduleId?: string;
 };
-
-function buildScopedSignatureWhere(session: SessionPayload) {
-  if (session.role === "admin") {
-    return {};
-  }
-
-  if (!session.groupId) {
-    return { id: "__no_matching_signature__" };
-  }
-
-  return { groupId: session.groupId };
-}
-
-function assertSignatureAccess(session: SessionPayload) {
-  if (!canAccessPlatform(session.role)) {
-    throw new Error("Accès refusé au module de signatures.");
-  }
-}
 
 function normalizePage(value: string | undefined) {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return 1;
+  }
+
+  return parsed;
 }
 
 function normalizePageSize(value: string | undefined) {
   const parsed = Number(value);
-  return SIGNATURE_PAGE_SIZES.includes(
-    parsed as (typeof SIGNATURE_PAGE_SIZES)[number]
-  )
-    ? parsed
-    : SIGNATURE_PAGE_SIZES[0];
+
+  if (parsed === 20 || parsed === 50) {
+    return parsed;
+  }
+
+  return 10;
 }
 
-function normalizeDateOnly(value: string | undefined) {
-  const trimmed = value?.trim();
-
-  if (!trimmed || !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+function normalizeDateInput(value: string | undefined) {
+  if (!value) {
     return "";
   }
 
-  const date = new Date(`${trimmed}T00:00:00.000Z`);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return trimmed;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
 
-function normalizeDateTime(value: string | undefined) {
-  const trimmed = value?.trim();
-
-  if (!trimmed) {
+function parseOptionalDateTimeInput(
+  value: string | undefined,
+  fieldLabel: string
+) {
+  if (!value) {
     return null;
   }
 
-  const normalized = trimmed.length === 16 ? `${trimmed}:00` : trimmed;
-  const date = new Date(`${normalized}.000Z`);
+  const parsed = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return null;
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${fieldLabel} invalide.`);
   }
 
-  return date;
+  return parsed;
 }
 
-function normalizeDateTimeLocal(value: Date) {
-  const year = value.getUTCFullYear();
-  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(value.getUTCDate()).padStart(2, "0");
-  const hours = String(value.getUTCHours()).padStart(2, "0");
-  const minutes = String(value.getUTCMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-function serializeSignature<
-  T extends {
-    busArrivalTime?: Date | null;
-    createdAt: Date;
-    signedAt: Date | null;
-  },
->(signature: T) {
-  return {
-    ...signature,
-    busArrivalTime: signature.busArrivalTime
-      ? signature.busArrivalTime.toISOString()
-      : null,
-    createdAt: signature.createdAt.toISOString(),
-    signedAt: signature.signedAt ? signature.signedAt.toISOString() : null,
-  };
-}
-
-function serializeSignatureListItem(signature: {
-  busArrivalTime: Date | null;
-  createdAt: Date;
-  group: {
-    id: string;
+function serializeScheduleOption(schedule: {
+  id: string;
+  workDate: Date;
+  service: {
     name: string;
   };
+}) {
+  return {
+    id: schedule.id,
+    serviceName: schedule.service.name,
+    workDate: schedule.workDate.toISOString(),
+  };
+}
+
+function serializeSignatureLog(signature: {
   id: string;
-  signedAt: Date | null;
   slipNumber: string;
+  signedAt: Date | null;
+  busArrivalTime: Date | null;
+  createdAt: Date;
   user: {
     id: string;
     fullName: string;
-    groupId: string | null;
-    group: {
-      name: string;
-    } | null;
-    role: Role;
     username: string;
+    memberships: Array<{
+      role: "admin" | "scheduler" | "reporter" | "worker";
+    }>;
   };
-}): SignatureLogItem {
-  if (!signature.user.groupId || !signature.user.group?.name) {
-    throw new Error("Signature invalide: groupe signataire manquant.");
-  }
-
+  workSchedule: {
+    id: string;
+    workDate: Date;
+    service: {
+      name: string;
+    };
+  };
+}) {
   return {
-    ...serializeSignature(signature),
+    busArrivalTime: signature.busArrivalTime?.toISOString() ?? null,
+    createdAt: signature.createdAt.toISOString(),
+    id: signature.id,
+    signedAt: signature.signedAt?.toISOString() ?? null,
+    slipNumber: signature.slipNumber,
     user: {
       id: signature.user.id,
       fullName: signature.user.fullName,
-      groupId: signature.user.groupId,
-      groupName: signature.user.group.name,
-      role: signature.user.role,
+      role: signature.user.memberships[0]?.role ?? "worker",
       username: signature.user.username,
+    },
+    workSchedule: {
+      id: signature.workSchedule.id,
+      serviceName: signature.workSchedule.service.name,
+      workDate: signature.workSchedule.workDate.toISOString(),
     },
   };
 }
 
-async function getSignerOptions(session: SessionPayload) {
-  const users = await prisma.user.findMany({
+async function ensureSignatureAccess(session: SessionPayload) {
+  if (!session.activeAgencyId) {
+    throw new Error("Accès refusé.");
+  }
+}
+
+async function listSignatureSchedules(session: SessionPayload) {
+  const schedules = await prisma.workSchedule.findMany({
     where: {
-      ...buildScopedUserWhere(session, SIGNATURE_SIGNER_ROLES),
-      groupId: { not: null },
+      agencyId: session.activeAgencyId,
+      workDate: {
+        gte: new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), // last 7 days
+        lte: new Date(), // today
+      },
     },
-    orderBy: [{ fullName: "asc" }, { username: "asc" }],
+    orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
+    take: 200,
     select: {
       id: true,
-      fullName: true,
-      groupId: true,
-      group: {
+      workDate: true,
+      service: {
         select: {
           name: true,
         },
       },
-      role: true,
-      username: true,
-    },
-  });
-
-  return users
-    .filter(
-      (
-        user
-      ): user is typeof user & { groupId: string; group: { name: string } } =>
-        Boolean(user.groupId && user.group?.name)
-    )
-    .map(user => ({
-      id: user.id,
-      fullName: user.fullName,
-      groupId: user.groupId,
-      groupName: user.group.name,
-      role: user.role,
-      username: user.username,
-    })) satisfies SignatureAgentOption[];
-}
-
-async function getValidatedSigner(session: SessionPayload, userId: string) {
-  const user = await prisma.user.findFirst({
-    where: {
-      ...buildScopedUserWhere(session, SIGNATURE_SIGNER_ROLES),
-      groupId: { not: null },
-      id: userId,
-    },
-    select: {
-      id: true,
-      groupId: true,
-    },
-  });
-
-  if (!user?.groupId) {
-    throw new Error("Signataire invalide.");
-  }
-
-  return {
-    id: user.id,
-    groupId: user.groupId,
-  };
-}
-
-export async function listSignatureLogs(
-  session: SessionPayload,
-  query: SignatureListQuery
-): Promise<SignatureLogListPayload> {
-  assertSignatureAccess(session);
-
-  const search = (query.q || "").trim();
-  const requestedGroupId = query.groupId?.trim() || "";
-  const userId = query.userId?.trim() || "";
-  const startDate = normalizeDateOnly(query.from);
-  const endDate = normalizeDateOnly(query.to);
-  const pageSize = normalizePageSize(query.pageSize);
-  const groupId = session.role === "admin" ? requestedGroupId : "";
-  const where: Record<string, unknown> = {
-    ...buildScopedSignatureWhere(session),
-  };
-
-  if (groupId) {
-    where.groupId = groupId;
-  }
-
-  if (userId) {
-    where.userId = userId;
-  }
-
-  if (search) {
-    where.OR = [
-      { slipNumber: { contains: search, mode: "insensitive" } },
-      { group: { name: { contains: search, mode: "insensitive" } } },
-      { user: { fullName: { contains: search, mode: "insensitive" } } },
-      { user: { username: { contains: search, mode: "insensitive" } } },
-    ];
-  }
-
-  if (startDate || endDate) {
-    where.signedAt = {};
-
-    if (startDate) {
-      (where.signedAt as Record<string, unknown>).gte = new Date(
-        `${startDate}T00:00:00.000Z`
-      );
-    }
-
-    if (endDate) {
-      (where.signedAt as Record<string, unknown>).lte = new Date(
-        `${endDate}T23:59:59.999Z`
-      );
-    }
-  }
-
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const month = today.slice(0, 7);
-  const todayStart = new Date(`${today}T00:00:00.000Z`);
-  const todayEnd = new Date(`${today}T23:59:59.999Z`);
-  const monthStart = new Date(`${month}-01T00:00:00.000Z`);
-  const [groups, signers, activeSigners, totalItems, todayCount, monthCount] =
-    await Promise.all([
-      session.role === "admin"
-        ? prisma.group.findMany({
-            where: { isActive: true },
-            orderBy: [{ service: "asc" }, { name: "asc" }],
+      assignments: {
+        orderBy: [
+          { isLeader: "desc" },
+          { isSubleader: "desc" },
+          { createdAt: "asc" },
+        ],
+        select: {
+          user: {
             select: {
               id: true,
-              name: true,
+              fullName: true,
+              username: true,
+              memberships: {
+                where: {
+                  agencyId: session.activeAgencyId,
+                  isActive: true,
+                },
+                take: 1,
+                select: {
+                  role: true,
+                },
+              },
             },
-          })
-        : Promise.resolve([]),
-      getSignerOptions(session),
-      prisma.user.count({
-        where: {
-          ...buildScopedUserWhere(session, SIGNATURE_SIGNER_ROLES),
-          groupId: { not: null },
-        },
-      }),
-      prisma.signatureLog.count({ where }),
-      prisma.signatureLog.count({
-        where: {
-          ...where,
-          signedAt: {
-            ...(where.signedAt as Record<string, unknown> | undefined),
-            gte: todayStart,
-            lte: todayEnd,
           },
         },
-      }),
-      prisma.signatureLog.count({
-        where: {
-          ...where,
-          signedAt: {
-            ...(where.signedAt as Record<string, unknown> | undefined),
-            gte: monthStart,
-          },
-        },
-      }),
-    ]);
-
-  const totalPages = Math.max(Math.ceil(totalItems / pageSize), 1);
-  const page = Math.min(normalizePage(query.page), totalPages);
-  const signatures = await prisma.signatureLog.findMany({
-    where,
-    orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-    select: signatureSelect,
-  });
-
-  return {
-    groups,
-    signers,
-    filters: {
-      endDate,
-      page,
-      pageSize,
-      search,
-      startDate,
-      userId,
-      groupId,
-    },
-    pagination: {
-      page,
-      pageSize,
-      totalItems,
-      totalPages,
-    },
-    signatures: signatures.map(serializeSignatureListItem),
-    summary: {
-      activeSigners,
-      monthCount,
-      todayCount,
-      totalItems,
-    },
-  };
-}
-
-export async function getSignatureLogFormOptions(session: SessionPayload) {
-  assertSignatureAccess(session);
-  return getSignerOptions(session);
-}
-
-export async function getSignatureLogById(session: SessionPayload, id: string) {
-  assertSignatureAccess(session);
-
-  const [signature, signers] = await Promise.all([
-    prisma.signatureLog.findUnique({
-      where: { id },
-      select: signatureSelect,
-    }),
-    getSignerOptions(session),
-  ]);
-
-  if (!signature) {
-    return null;
-  }
-
-  if (session.role !== "admin" && signature.group.id !== session.groupId) {
-    return null;
-  }
-
-  return {
-    signers,
-    signature: serializeSignature(signature),
-  };
-}
-
-export async function createSignatureLog(
-  session: SessionPayload,
-  body: Partial<SignatureFormState>
-) {
-  assertSignatureAccess(session);
-
-  const userId = body.userId?.trim();
-  const slipNumber = body.slipNumber?.trim();
-  const busArrivalTime = normalizeDateTime(body.busArrivalTime);
-  const signedAt = normalizeDateTime(body.signedAt);
-
-  if (!userId || !slipNumber) {
-    throw new Error("Signataire et numéro de bordereau sont obligatoires.");
-  }
-
-  const signer = await getValidatedSigner(session, userId);
-
-  const signature = await prisma.signatureLog.create({
-    data: {
-      busArrivalTime,
-      groupId: signer.groupId,
-      slipNumber,
-      ...(signedAt ? { signedAt } : {}),
-      userId,
-    },
-    select: signatureSelect,
-  });
-
-  return {
-    signature: serializeSignature(signature),
-  };
-}
-
-export async function updateSignatureLog(
-  session: SessionPayload,
-  id: string,
-  body: Partial<SignatureFormState>
-) {
-  assertSignatureAccess(session);
-
-  const userId = body.userId?.trim();
-  const slipNumber = body.slipNumber?.trim();
-  const busArrivalTime = normalizeDateTime(body.busArrivalTime);
-  const signedAt = normalizeDateTime(body.signedAt);
-
-  if (!userId || !slipNumber) {
-    throw new Error("Signataire et numéro de bordereau sont obligatoires.");
-  }
-
-  const signer = await getValidatedSigner(session, userId);
-
-  const existingSignature = await prisma.signatureLog.findUnique({
-    where: { id },
-    select: {
-      groupId: true,
-      id: true,
-    },
-  });
-
-  if (!existingSignature) {
-    return null;
-  }
-
-  if (
-    session.role !== "admin" &&
-    existingSignature.groupId !== session.groupId
-  ) {
-    throw new Error("Accès refusé à cette signature.");
-  }
-
-  try {
-    const signature = await prisma.signatureLog.update({
-      where: { id },
-      data: {
-        busArrivalTime,
-        groupId: signer.groupId,
-        slipNumber,
-        ...(signedAt ? { signedAt } : { signedAt: null }),
-        userId,
       },
-      select: signatureSelect,
+    },
+  });
+
+  return {
+    schedules: schedules.map(serializeScheduleOption),
+    signersBySchedule: Object.fromEntries(
+      schedules.map(schedule => [
+        schedule.id,
+        schedule.assignments.map(assignment => ({
+          id: assignment.user.id,
+          fullName: assignment.user.fullName,
+          role: assignment.user.memberships[0]?.role ?? "worker",
+          username: assignment.user.username,
+        })),
+      ])
+    ),
+  };
+}
+
+async function listSignatureAgents(session: SessionPayload) {
+  const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      memberships: {
+        some: {
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+      },
+      workScheduleAssignments: {
+        some: {
+          workSchedule: {
+            agencyId: session.activeAgencyId,
+          },
+        },
+      },
+    },
+    orderBy: [{ fullName: "asc" }],
+    select: {
+      id: true,
+      fullName: true,
+      username: true,
+      memberships: {
+        where: {
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+        take: 1,
+        select: {
+          role: true,
+        },
+      },
+    },
+  });
+
+  return users.map(user => ({
+    id: user.id,
+    fullName: user.fullName,
+    role: user.memberships[0]?.role ?? "worker",
+    username: user.username,
+  }));
+}
+
+async function validateSignaturePayload(
+  session: SessionPayload,
+  input: SignatureLogInput
+) {
+  await ensureSignatureAccess(session);
+
+  const workScheduleId = (input.workScheduleId || "").trim();
+  const userId = (input.userId || "").trim();
+  const slipNumber = (input.slipNumber || "").trim();
+
+  if (!workScheduleId) {
+    throw new Error("Le planning est requis.");
+  }
+
+  if (!userId) {
+    throw new Error("Le signataire est requis.");
+  }
+
+  if (!slipNumber) {
+    throw new Error("Le numéro de bordereau est requis.");
+  }
+
+  const schedule = await prisma.workSchedule.findFirst({
+    where: {
+      id: workScheduleId,
+      agencyId: session.activeAgencyId,
+    },
+    select: {
+      id: true,
+      assignments: {
+        where: {
+          userId,
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!schedule) {
+    throw new Error("Le planning sélectionné est introuvable.");
+  }
+
+  if (schedule.assignments.length === 0) {
+    throw new Error("Le signataire doit être affecté au planning sélectionné.");
+  }
+
+  const isAdmin = canAccessAgencyAdminWorkspace(session);
+
+  if (!isAdmin) {
+    const signerMembership = await prisma.userAgencyMembership.findFirst({
+      where: {
+        userId,
+        agencyId: session.activeAgencyId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
     });
 
-    return {
-      signature: serializeSignature(signature),
-    };
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return null;
+    if (!signerMembership) {
+      throw new Error(
+        "Le signataire sélectionné n'appartient pas à votre agence."
+      );
     }
-
-    throw error;
   }
+
+  return {
+    busArrivalTime: parseOptionalDateTimeInput(
+      input.busArrivalTime,
+      "L'heure d'arrivée du bus"
+    ),
+    signedAt: parseOptionalDateTimeInput(
+      input.signedAt,
+      "La date de signature"
+    ),
+    slipNumber,
+    userId,
+    workScheduleId,
+  };
 }
 
-export async function deleteSignatureLog(session: SessionPayload, id: string) {
-  assertSignatureAccess(session);
-
-  const existingSignature = await prisma.signatureLog.findUnique({
-    where: { id },
-    select: {
-      groupId: true,
-      id: true,
-    },
-  });
-
-  if (!existingSignature) {
-    return false;
+export function formatSignatureDateTimeInput(value: Date | string | null) {
+  if (!value) {
+    return "";
   }
 
-  if (
-    session.role !== "admin" &&
-    existingSignature.groupId !== session.groupId
-  ) {
-    throw new Error("Accès refusé à cette signature.");
+  const parsed = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
   }
 
-  try {
-    await prisma.signatureLog.delete({ where: { id } });
-    return true;
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2025"
-    ) {
-      return false;
-    }
-
-    throw error;
-  }
+  return parsed.toISOString().slice(0, 16);
 }
 
 export function getDefaultSignatureFormState() {
@@ -613,19 +340,322 @@ export function getDefaultSignatureFormState() {
     signedAt: "",
     slipNumber: "",
     userId: "",
-  } satisfies SignatureFormState;
+    workScheduleId: "",
+  };
 }
 
-export function formatSignatureDateTimeInput(value: string | null) {
-  if (!value) {
-    return "";
+export async function getSignatureLogFormOptions(session: SessionPayload) {
+  await ensureSignatureAccess(session);
+
+  const [signers, schedulePayload] = await Promise.all([
+    listSignatureAgents(session),
+    listSignatureSchedules(session),
+  ]);
+
+  return {
+    schedules: schedulePayload.schedules,
+    signers,
+    signersBySchedule: schedulePayload.signersBySchedule,
+  };
+}
+
+export async function listSignatureLogs(
+  session: SessionPayload,
+  query: SignatureLogQuery
+) {
+  await ensureSignatureAccess(session);
+
+  const search = (query.q || "").trim();
+  const userId = (query.userId || "").trim();
+  const workScheduleId = (query.workScheduleId || "").trim();
+  const startDate = normalizeDateInput(query.from);
+  const endDate = normalizeDateInput(query.to);
+  const pageSize = normalizePageSize(query.pageSize);
+
+  const workDateFilter: Prisma.DateTimeFilter = {
+    ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
+    ...(endDate ? { lte: new Date(`${endDate}T00:00:00.000Z`) } : {}),
+  };
+
+  const where: Prisma.SignatureLogWhereInput = {
+    workSchedule: {
+      agencyId: session.activeAgencyId,
+      ...(workScheduleId ? { id: workScheduleId } : {}),
+      ...(startDate || endDate ? { workDate: workDateFilter } : {}),
+    },
+    ...(userId ? { userId } : {}),
+  };
+
+  if (search) {
+    where.OR = [
+      { slipNumber: { contains: search, mode: "insensitive" } },
+      { user: { fullName: { contains: search, mode: "insensitive" } } },
+      { user: { username: { contains: search, mode: "insensitive" } } },
+      {
+        workSchedule: {
+          service: {
+            name: { contains: search, mode: "insensitive" },
+          },
+        },
+      },
+    ];
   }
 
-  const date = new Date(value);
+  const [schedulePayload, signers, totalItems] = await Promise.all([
+    listSignatureSchedules(session),
+    listSignatureAgents(session),
+    prisma.signatureLog.count({ where }),
+  ]);
 
-  if (Number.isNaN(date.getTime())) {
-    return "";
+  const totalPages = Math.max(Math.ceil(totalItems / pageSize), 1);
+  const page = Math.min(normalizePage(query.page), totalPages);
+  const now = new Date();
+  const todayStart = new Date(
+    `${now.toISOString().slice(0, 10)}T00:00:00.000Z`
+  );
+  const monthStart = new Date(
+    `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01T00:00:00.000Z`
+  );
+
+  const [signatures, todayCount, monthCount, activeSignerRows] =
+    await Promise.all([
+      prisma.signatureLog.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          slipNumber: true,
+          signedAt: true,
+          busArrivalTime: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              memberships: {
+                where: {
+                  agencyId: session.activeAgencyId,
+                  isActive: true,
+                },
+                take: 1,
+                select: {
+                  role: true,
+                },
+              },
+            },
+          },
+          workSchedule: {
+            select: {
+              id: true,
+              workDate: true,
+              service: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.signatureLog.count({
+        where: {
+          ...where,
+          createdAt: {
+            gte: todayStart,
+          },
+        },
+      }),
+      prisma.signatureLog.count({
+        where: {
+          ...where,
+          createdAt: {
+            gte: monthStart,
+          },
+        },
+      }),
+      prisma.signatureLog.findMany({
+        where,
+        distinct: ["userId"],
+        select: {
+          userId: true,
+        },
+      }),
+    ]);
+
+  return {
+    filters: {
+      endDate,
+      page,
+      pageSize,
+      search,
+      startDate,
+      userId,
+      workScheduleId,
+    },
+    pagination: {
+      totalItems,
+      totalPages,
+    },
+    schedules: schedulePayload.schedules,
+    signers,
+    signatures: signatures.map(serializeSignatureLog),
+    summary: {
+      activeSigners: activeSignerRows.length,
+      monthCount,
+      todayCount,
+      totalItems,
+    },
+  };
+}
+
+export async function getSignatureLogById(session: SessionPayload, id: string) {
+  await ensureSignatureAccess(session);
+
+  const signature = await prisma.signatureLog.findFirst({
+    where: {
+      id,
+      workSchedule: {
+        agencyId: session.activeAgencyId,
+      },
+    },
+    select: {
+      id: true,
+      slipNumber: true,
+      signedAt: true,
+      busArrivalTime: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          memberships: {
+            where: {
+              agencyId: session.activeAgencyId,
+              isActive: true,
+            },
+            take: 1,
+            select: {
+              role: true,
+            },
+          },
+        },
+      },
+      workSchedule: {
+        select: {
+          id: true,
+          workDate: true,
+          service: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!signature) {
+    return null;
   }
 
-  return normalizeDateTimeLocal(date);
+  const formOptions = await getSignatureLogFormOptions(session);
+  const currentScheduleSigners =
+    formOptions.signersBySchedule[signature.workSchedule.id] ?? [];
+
+  if (!currentScheduleSigners.some(signer => signer.id === signature.user.id)) {
+    formOptions.signersBySchedule[signature.workSchedule.id] = [
+      ...currentScheduleSigners,
+      {
+        id: signature.user.id,
+        fullName: signature.user.fullName,
+        role: signature.user.memberships[0]?.role ?? "worker",
+        username: signature.user.username,
+      },
+    ];
+  }
+
+  return {
+    ...formOptions,
+    signature: serializeSignatureLog(signature),
+  };
+}
+
+export async function createSignatureLog(
+  session: SessionPayload,
+  input: SignatureLogInput
+) {
+  const payload = await validateSignaturePayload(session, input);
+  const signature = await prisma.signatureLog.create({
+    data: payload,
+    select: {
+      id: true,
+    },
+  });
+
+  return { signature };
+}
+
+export async function updateSignatureLog(
+  session: SessionPayload,
+  id: string,
+  input: SignatureLogInput
+) {
+  const existing = await prisma.signatureLog.findFirst({
+    where: {
+      id,
+      workSchedule: {
+        agencyId: session.activeAgencyId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  const payload = await validateSignaturePayload(session, input);
+  const signature = await prisma.signatureLog.update({
+    where: {
+      id,
+    },
+    data: payload,
+    select: {
+      id: true,
+    },
+  });
+
+  return { signature };
+}
+
+export async function deleteSignatureLog(session: SessionPayload, id: string) {
+  const existing = await prisma.signatureLog.findFirst({
+    where: {
+      id,
+      workSchedule: {
+        agencyId: session.activeAgencyId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
+  await prisma.signatureLog.delete({
+    where: {
+      id,
+    },
+  });
+
+  return true;
 }

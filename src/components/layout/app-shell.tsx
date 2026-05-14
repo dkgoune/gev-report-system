@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -11,15 +11,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import type { SessionPayload } from "@/lib/session";
+
+type MembershipOption = {
+  agencyId: string;
+  agencyName: string;
+  role: SessionPayload["activeMembershipRole"];
+};
 
 type AppShellProps = {
   session: SessionPayload;
+  memberships: MembershipOption[];
   children: React.ReactNode;
 };
 
-type NavRole = SessionPayload["role"];
+type NavRole = SessionPayload["activeMembershipRole"];
 
 type NavChild = {
   href: string;
@@ -42,8 +49,8 @@ const adminNavItems: NavItem[] = [
     title: "Tableau de bord",
     description: "Vue générale de la plateforme",
     children: [
-      { href: "/", match: "exact", title: "Indicateurs importants" },
-      { href: "/analytics", match: "exact", title: "Analytique" },
+      { href: "/", match: "exact", title: "Vue d'ensemble" },
+      { href: "/analytics", match: "exact", title: "Analyse" },
       {
         href: "/evaluations-analytics",
         match: "exact",
@@ -59,7 +66,30 @@ const adminNavItems: NavItem[] = [
     children: [
       { href: "/users", match: "exact", title: "Liste des personnels" },
       { href: "/users/new", match: "exact", title: "Ajouter un personnel" },
-      { href: "/groups", title: "Groupes de services" },
+    ],
+  },
+  {
+    href: "/services",
+    title: "Services",
+    description: "Configurer les services de l'agence",
+  },
+  {
+    href: "/posts",
+    title: "Postes",
+    description: "Gerer les postes de travail",
+  },
+  {
+    href: "/work-schedules",
+    title: "Planning",
+    description: "Planifier les services et les affectations",
+    children: [
+      { href: "/work-schedules", match: "exact", title: "Liste par semaines" },
+      {
+        href: "/work-schedules/list",
+        match: "exact",
+        title: "Liste par jours",
+      },
+      { href: "/work-schedules/new", match: "exact", title: "Nouveau" },
     ],
   },
   {
@@ -69,6 +99,12 @@ const adminNavItems: NavItem[] = [
     children: [
       { href: "/reports", match: "exact", title: "Liste des rapports" },
       { href: "/reports/new", title: "Ajouter un rapport" },
+      {
+        href: "/reports/incidents",
+        match: "exact",
+        title: "Definitions d'incidents",
+        roles: ["admin"],
+      },
     ],
   },
   {
@@ -86,16 +122,16 @@ const adminNavItems: NavItem[] = [
     description: "Appliquer les critères au personnel",
     children: [
       {
-        href: "/evaluations/new",
-        match: "exact",
-        title: "Ajouter une évaluation",
-        roles: ["admin", "leader", "subleader"],
-      },
-      {
         href: "/evaluations",
         match: "exact",
         title: "Liste des évaluations",
         roles: ["admin"],
+      },
+      {
+        href: "/evaluations/new",
+        match: "exact",
+        title: "Ajouter une évaluation",
+        roles: ["admin", "scheduler", "reporter"],
       },
     ],
   },
@@ -116,7 +152,7 @@ const adminNavItems: NavItem[] = [
 ];
 
 function getOperatorNavItems(role: NavRole): NavItem[] {
-  if (role === "leader") {
+  if (role === "scheduler") {
     return [
       {
         title: "Rapports",
@@ -132,6 +168,15 @@ function getOperatorNavItems(role: NavRole): NavItem[] {
         children: [{ href: "/evaluations/new", title: "Nouvelle évaluation" }],
       },
       {
+        title: "Planning",
+        description: "Créer et gérer les horaires de travail",
+        children: [
+          { href: "/work-schedules", match: "exact", title: "Vue d'ensemble" },
+          { href: "/work-schedules/list", match: "exact", title: "Liste" },
+          { href: "/work-schedules/new", match: "exact", title: "Nouveau" },
+        ],
+      },
+      {
         title: "Signatures de bordereaux",
         description: "Enregistrez les signataires de bordereaux",
         children: [
@@ -141,12 +186,13 @@ function getOperatorNavItems(role: NavRole): NavItem[] {
       },
     ];
   }
-  if (role === "subleader") {
+  if (role === "reporter") {
     return [
       {
         title: "Rapports",
         description: "Rapports journaliers et incidents",
         children: [
+          { href: "/reports", match: "exact", title: "Liste des rapports" },
           { href: "/reports/new", match: "exact", title: "Nouveau rapport" },
         ],
       },
@@ -157,29 +203,105 @@ function getOperatorNavItems(role: NavRole): NavItem[] {
 }
 
 function getNavItems(session: SessionPayload): NavItem[] {
-  return canAccessAdminWorkspace(session.role)
+  return canAccessAgencyAdminWorkspace(session)
     ? adminNavItems
-    : getOperatorNavItems(session.role);
+    : getOperatorNavItems(session.activeMembershipRole);
 }
 
-export function AppShell({ session, children }: AppShellProps) {
+function AgencySwitcher({
+  session,
+  memberships,
+}: {
+  session: SessionPayload;
+  memberships: MembershipOption[];
+}) {
+  const [pending, setPending] = useState(false);
+
+  async function onSwitch(agencyId: string) {
+    // if (!agencyId || agencyId === session.activeAgencyId) {
+    //   return;
+    // }
+
+    setPending(true);
+    try {
+      const response = await fetch("/api/auth/switch-agency", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ agencyId }),
+      });
+
+      if (!response.ok) {
+        setPending(false);
+        return;
+      }
+
+      window.location.reload();
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="hidden min-w-57.5 sm:block">
+      <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">
+        Agence active
+      </label>
+      <select
+        className="w-full border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+        value={session.activeAgencyId}
+        disabled={pending || memberships.length <= 1}
+        onChange={event => onSwitch(event.target.value)}
+      >
+        {memberships.map(membership => (
+          <option key={membership.agencyId} value={membership.agencyId}>
+            {membership.agencyName}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export function AppShell({ session, memberships, children }: AppShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    function setSidebarStateFromStorage() {
+      const storedSidebarOpen = localStorage.getItem("sidebarOpen");
+      if (storedSidebarOpen !== null) {
+        setSidebarOpen(storedSidebarOpen === "true");
+      }
+    }
+    setSidebarStateFromStorage();
+  }, []);
+
+  function toggleSidebarOpen() {
+    const newState = !sidebarOpen;
+    setSidebarOpen(newState);
+
+    localStorage.setItem("sidebarOpen", newState.toString());
+  }
 
   const visibleNavItems = getNavItems(session)
     .map(item => ({
       ...item,
       children: item.children?.filter(
-        child => !child.roles || child.roles.includes(session.role)
+        child =>
+          !child.roles || child.roles.includes(session.activeMembershipRole)
       ),
     }))
     .filter(item => {
-      const hasAccess = !item.roles || item.roles.includes(session.role);
+      const hasAccess =
+        !item.roles || item.roles.includes(session.activeMembershipRole);
       const hasChildren = Boolean(item.children && item.children.length > 0);
       return hasAccess && (item.href || hasChildren);
     });
 
-  const roleDisplay = formatRole(session.role);
+  const roleDisplay = formatRole(session.activeMembershipRole);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#ecfeff_0%,#f8fafc_16%,#f8fafc_100%)]">
@@ -197,6 +319,19 @@ export function AppShell({ session, children }: AppShellProps) {
               <Menu />
             </Button>
 
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="hidden md:inline-flex"
+              onClick={toggleSidebarOpen}
+              aria-label={
+                sidebarOpen ? "Masquer la navigation" : "Afficher la navigation"
+              }
+            >
+              {sidebarOpen ? <X /> : <Menu />}
+            </Button>
+
             <div className="min-w-0">
               <p className="text-[11px] font-semibold tracking-[0.24em] text-teal-700 uppercase">
                 General Express Voyages
@@ -208,11 +343,15 @@ export function AppShell({ session, children }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            <AgencySwitcher session={session} memberships={memberships} />
+
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-slate-900">
                 {session.username}
               </p>
-              <p className="text-xs text-slate-500">Rôle: {session.role}</p>
+              <p className="text-xs text-slate-500">
+                Role: {session.activeMembershipRole}
+              </p>
             </div>
 
             <LogoutButton />
@@ -221,23 +360,25 @@ export function AppShell({ session, children }: AppShellProps) {
       </header>
 
       <div className="mx-auto flex w-full max-w-440 flex-1 gap-6 overflow-hidden px-4 py-6 xl:px-6">
-        <aside className="hidden h-full min-h-0 w-88 shrink-0 overflow-hidden border border-slate-200/80 bg-white shadow-[0_16px_50px_rgba(15,23,42,0.08)] md:block">
-          <div className="flex h-full min-h-0 flex-col overflow-hidden p-4">
-            <p className="mb-4 text-xs font-bold tracking-[0.18em] text-slate-500 uppercase">
-              Navigation
-            </p>
-            <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 pb-4">
-              {visibleNavItems.map(item => (
-                <NavigationItem
-                  key={item.title}
-                  item={item}
-                  pathname={pathname}
-                  onNavigate={() => undefined}
-                />
-              ))}
-            </nav>
-          </div>
-        </aside>
+        {sidebarOpen ? (
+          <aside className="hidden h-full min-h-0 w-88 shrink-0 overflow-hidden border border-slate-200/80 bg-white shadow-[0_16px_50px_rgba(15,23,42,0.08)] md:block">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden p-4">
+              <p className="mb-4 text-xs font-bold tracking-[0.18em] text-slate-500 uppercase">
+                Navigation
+              </p>
+              <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 pb-4">
+                {visibleNavItems.map(item => (
+                  <NavigationItem
+                    key={item.title}
+                    item={item}
+                    pathname={pathname}
+                    onNavigate={() => undefined}
+                  />
+                ))}
+              </nav>
+            </div>
+          </aside>
+        ) : null}
 
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="space-y-4">
@@ -427,14 +568,12 @@ function formatRole(role: NavRole) {
   switch (role) {
     case "admin":
       return "Administrateur";
-    case "leader":
-      return "Leader";
-    case "subleader":
-      return "Sous-leader";
-    case "agent":
+    case "scheduler":
+      return "Planificateur";
+    case "reporter":
+      return "Rapporteur";
+    case "worker":
       return "Agent";
-    case "convoyer":
-      return "Convoyeur";
     default:
       return role;
   }

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -8,17 +7,25 @@ import { Button } from "@/components/ui/button";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { roleLabel } from "@/components/user-management/constants";
-import type { SignatureAgentOption, SignatureFormState } from "./types";
+import type {
+  SignatureAgentOption,
+  SignatureFormState,
+  SignatureScheduleOption,
+} from "./types";
 
 type SignatureFormProps = {
+  schedules: SignatureScheduleOption[];
   signers: SignatureAgentOption[];
+  signersBySchedule: Record<string, SignatureAgentOption[]>;
   initialState: SignatureFormState;
   mode: "create" | "edit";
   signatureId?: string;
 };
 
 export function SignatureForm({
+  schedules,
   signers,
+  signersBySchedule,
   initialState,
   mode,
   signatureId,
@@ -30,13 +37,35 @@ export function SignatureForm({
       signers.map(signer => ({
         value: signer.id,
         label: `${signer.fullName} (${roleLabel(signer.role)})`,
-        keywords: [signer.username, signer.groupName, roleLabel(signer.role)],
+        keywords: [signer.username, roleLabel(signer.role)],
       })),
     [signers]
+  );
+  const scheduleOptions = useMemo(
+    () =>
+      schedules.map(schedule => ({
+        value: schedule.id,
+        label: `${new Date(schedule.workDate).toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })} - ${schedule.serviceName}`,
+        keywords: [schedule.serviceName, schedule.workDate],
+      })),
+    [schedules]
   );
   const [formState, setFormState] = useState<SignatureFormState>(defaultState);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const availableSignerOptions = useMemo(
+    () =>
+      (signersBySchedule[formState.workScheduleId] ?? []).map(signer => ({
+        value: signer.id,
+        label: `${signer.fullName} (${roleLabel(signer.role)})`,
+        keywords: [signer.username, roleLabel(signer.role)],
+      })),
+    [formState.workScheduleId, signersBySchedule]
+  );
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,45 +133,38 @@ export function SignatureForm({
 
   return (
     <section className="border border-slate-200 bg-slate-50 p-4">
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-slate-900">
-            {mode === "create"
-              ? "Ajouter une signature"
-              : "Modifier la signature"}
-          </h3>
-          <p className="text-sm text-slate-600">
-            Enregistrez un bordereau signé par un agent, un chef de service ou
-            un administrateur, puis complétez l'arrivée du bus si elle est
-            connue.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/signatures">Voir la liste</Link>
-          </Button>
-          {mode === "edit" ? (
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onDelete}
-              disabled={deleting || submitting}
-            >
-              {deleting ? "Suppression..." : "Supprimer"}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
       <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
+        <div className="space-y-1 text-sm">
+          <span className="font-medium text-slate-700">Planning</span>
+          <SearchableSelect
+            value={formState.workScheduleId}
+            options={scheduleOptions}
+            placeholder="Choisir un planning"
+            searchPlaceholder="Rechercher un planning"
+            emptyMessage="Aucun planning correspondant."
+            onValueChange={value =>
+              setFormState(current => ({
+                ...current,
+                workScheduleId: value,
+                userId: (signersBySchedule[value] ?? []).some(
+                  signer => signer.id === current.userId
+                )
+                  ? current.userId
+                  : "",
+              }))
+            }
+          />
+        </div>
+
         <div className="space-y-1 text-sm">
           <span className="font-medium text-slate-700">Signataire</span>
           <SearchableSelect
             value={formState.userId}
-            options={signerOptions}
+            options={
+              formState.workScheduleId ? availableSignerOptions : signerOptions
+            }
             placeholder="Choisir un signataire"
-            searchPlaceholder="Rechercher un membre du groupe"
+            searchPlaceholder="Rechercher un signataire"
             emptyMessage="Aucun signataire correspondant."
             onValueChange={value =>
               setFormState(current => ({
@@ -220,6 +242,19 @@ export function SignatureForm({
           >
             Réinitialiser
           </Button>
+
+          <div className="flex-1 flex-wrap gap-2" />
+
+          {mode === "edit" ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onDelete}
+              disabled={deleting || submitting}
+            >
+              {deleting ? "Suppression..." : "Supprimer"}
+            </Button>
+          ) : null}
         </div>
       </form>
     </section>

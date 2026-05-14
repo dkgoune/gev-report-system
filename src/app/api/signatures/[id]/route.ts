@@ -65,6 +65,7 @@ export async function PATCH(
       signedAt?: string;
       slipNumber?: string;
       userId?: string;
+      workScheduleId?: string;
     };
     const payload = await updateSignatureLog(session, id, body);
 

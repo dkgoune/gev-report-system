@@ -1,25 +1,26 @@
-import type { Role } from "@/generated/prisma/enums";
+import type { MembershipRole } from "@/generated/prisma/enums";
 
 export type SignatureAgentOption = {
   id: string;
   fullName: string;
-  groupId: string;
-  groupName: string;
-  role: Role;
+  role: MembershipRole;
   username: string;
+};
+
+export type SignatureScheduleOption = {
+  id: string;
+  serviceName: string;
+  workDate: string;
 };
 
 export type SignatureLogItem = {
   busArrivalTime: string | null;
   createdAt: string;
-  group: {
-    id: string;
-    name: string;
-  };
   id: string;
   signedAt: string | null;
   slipNumber: string;
   user: SignatureAgentOption;
+  workSchedule: SignatureScheduleOption;
 };
 
 export type SignatureFormState = {
@@ -27,4 +28,5 @@ export type SignatureFormState = {
   signedAt: string;
   slipNumber: string;
   userId: string;
+  workScheduleId: string;
 };

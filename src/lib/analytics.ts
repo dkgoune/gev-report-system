@@ -1,406 +1,500 @@
-import type { Role, Service } from "@/generated/prisma/enums";
+import type { MembershipRole } from "@/generated/prisma/enums";
+import { formatRangeLabel, type AnalyticsRange } from "@/lib/analytics-range";
 import { prisma } from "@/lib/prisma";
-import { REPORT_TYPES } from "@/lib/report-types";
-import { type AnalyticsRange, formatRangeLabel } from "@/lib/analytics-range";
-import { getServiceForRole, serviceLabel } from "@/lib/services";
 import type { SessionPayload } from "@/lib/session";
 
-type ReportDelegate = {
-  count: (args?: unknown) => Promise<number>;
-  groupBy: (args: unknown) => Promise<
-    Array<{
-      _count: { _all: number };
-      reportDate: Date;
-    }>
-  >;
+type DailyTrendPoint = {
+  date: string;
+  reports: number;
+  incidents: number;
+  signatures: number;
 };
 
-type ReportTypeBreakdown = {
+type BreakdownItem = {
   slug: string;
   title: string;
   total: number;
   unread: number;
 };
 
-type TrendPoint = {
-  date: string;
-  incidents: number;
-  reports: number;
-  signatures: number;
-};
-
 type ServiceBreakdownItem = {
-  incidentCount: number;
+  service: string;
   label: string;
+  incidentCount: number;
   reportCount: number;
-  service: Service;
 };
 
-type TopSigner = {
-  count: number;
-  fullName: string;
-  role: Role;
+type TopSignerItem = {
   userId: string;
-};
-
-type CriterionUsage = {
-  count: number;
-  impact: "POSITIVE" | "NEGATIVE";
-  name: string;
-};
-
-type EvaluationScoreRow = {
-  count: number;
   fullName: string;
-  role: Role;
+  role: MembershipRole;
+  count: number;
+};
+
+type LeaderboardItem = {
+  userId: string;
+  fullName: string;
+  role: MembershipRole;
+  count: number;
   score: number;
-  userId: string;
+};
+
+type CriteriaUsageItem = {
+  name: string;
+  count: number;
 };
 
 export type AnalyticsSnapshot = {
-  criteriaUsage: CriterionUsage[];
-  evaluationSummary: {
-    negativeCount: number;
-    negativeWeight: number;
-    netScore: number;
-    positiveCount: number;
-    positiveWeight: number;
-    total: number;
-  };
-  incidentTypeBreakdown: ReportTypeBreakdown[];
-  leaderboard: {
-    bottom: EvaluationScoreRow[];
-    top: EvaluationScoreRow[];
-  };
   range: {
     description: string;
     from: string;
     preset: string;
     to: string;
   };
-  reportTypeBreakdown: ReportTypeBreakdown[];
-  serviceBreakdown: ServiceBreakdownItem[];
   summary: {
+    reports: number;
     incidents: number;
-    negativeEvaluations: number;
+    unreadReports: number;
+    signatures: number;
     netEvaluationScore: number;
     positiveEvaluations: number;
-    reports: number;
-    signatures: number;
-    unreadReports: number;
   };
-  topSigners: TopSigner[];
-  trend: TrendPoint[];
+  trend: DailyTrendPoint[];
+  incidentTypeBreakdown: BreakdownItem[];
+  reportTypeBreakdown: BreakdownItem[];
+  serviceBreakdown: ServiceBreakdownItem[];
+  topSigners: TopSignerItem[];
+  evaluationSummary: {
+    positiveCount: number;
+    negativeCount: number;
+    netScore: number;
+  };
+  leaderboard: {
+    top: LeaderboardItem[];
+  };
+  criteriaUsage: CriteriaUsageItem[];
 };
 
-const INCIDENT_REPORT_TYPES = REPORT_TYPES.filter(
-  reportType => reportType.slug !== "general"
-);
-
-const ALL_SERVICES: Service[] = ["envoi", "piste", "retrait"];
-
-function getReportDelegate(model: string) {
-  return (prisma as unknown as Record<string, ReportDelegate>)[model];
+function toDateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
-function getScopedServices(session: SessionPayload) {
-  if (session.role === "admin") {
-    return ALL_SERVICES;
-  }
-
-  const service = getServiceForRole(session.role, session.groupService);
-  return service ? [service] : [];
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
-function buildReportWhere(
-  reportType: (typeof REPORT_TYPES)[number],
-  range: AnalyticsRange,
-  service?: Service,
-  unreadOnly?: boolean
-) {
-  const where: Record<string, unknown> = {
-    reportDate: {
-      gte: range.fromDate,
-      lte: range.toDate,
-    },
-  };
-
-  if (unreadOnly) {
-    where.isRead = false;
+function roleFromRaw(value: string | null | undefined): MembershipRole {
+  if (
+    value === "admin" ||
+    value === "scheduler" ||
+    value === "reporter" ||
+    value === "worker"
+  ) {
+    return value;
   }
 
-  if (!service) {
-    return where;
-  }
-
-  if (reportType.serviceField) {
-    where.service = service;
-    return where;
-  }
-
-  where.reportedBy = {
-    group: {
-      service,
-    },
-  };
-
-  return where;
+  return "worker";
 }
 
-function toDateOnly(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
+function signedEvaluationScore(score: number, impact: string): number {
+  const normalizedImpact = impact.trim().toLowerCase();
 
-function enumerateDays(range: AnalyticsRange) {
-  const days: string[] = [];
-  const cursor = new Date(range.fromDate);
-
-  while (cursor <= range.toDate) {
-    days.push(toDateOnly(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  if (normalizedImpact === "low" || normalizedImpact === "negative") {
+    return -Math.abs(score);
   }
 
-  return days;
-}
-
-function addToMap(map: Map<string, number>, key: string, value: number) {
-  map.set(key, (map.get(key) ?? 0) + value);
+  return Math.abs(score);
 }
 
 export async function getAnalyticsSnapshot(
   session: SessionPayload,
   range: AnalyticsRange
 ): Promise<AnalyticsSnapshot> {
-  const scopedServices = getScopedServices(session);
-  const reportScopeService =
-    session.role === "admin"
-      ? undefined
-      : (getServiceForRole(session.role, session.groupService) ?? undefined);
-  const reportTypeCounts = await Promise.all(
-    REPORT_TYPES.map(async reportType => {
-      const delegate = getReportDelegate(reportType.model);
-      const [total, unread, grouped] = await Promise.all([
-        delegate.count({
-          where: buildReportWhere(reportType, range, reportScopeService),
-        }),
-        delegate.count({
-          where: buildReportWhere(reportType, range, reportScopeService, true),
-        }),
-        delegate.groupBy({
-          by: ["reportDate"],
-          where: buildReportWhere(reportType, range, reportScopeService),
-          _count: { _all: true },
-          orderBy: { reportDate: "asc" },
-        }),
-      ]);
+  const [
+    reports,
+    incidentEntries,
+    signatureRows,
+    signerGroups,
+    evaluations,
+    criteriaRows,
+  ] = await Promise.all([
+    prisma.generalReport.findMany({
+      where: {
+        workSchedule: {
+          agencyId: session.activeAgencyId,
+          workDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
+          },
+        },
+      },
+      select: {
+        id: true,
+        isRead: true,
+        createdAt: true,
+        workSchedule: {
+          select: {
+            workDate: true,
+            service: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.generalReportIncidentEntry.findMany({
+      where: {
+        workSchedule: {
+          agencyId: session.activeAgencyId,
+          workDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
+          },
+        },
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        templateCodeSnapshot: true,
+        templateNameSnapshot: true,
+        workSchedule: {
+          select: {
+            workDate: true,
+            service: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.signatureLog.findMany({
+      where: {
+        workSchedule: {
+          agencyId: session.activeAgencyId,
+          workDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
+          },
+        },
+        signedAt: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        userId: true,
+        signedAt: true,
+        workSchedule: {
+          select: {
+            workDate: true,
+          },
+        },
+      },
+    }),
+    prisma.signatureLog.groupBy({
+      by: ["userId"],
+      _count: {
+        _all: true,
+      },
+      where: {
+        workSchedule: {
+          agencyId: session.activeAgencyId,
+          workDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
+          },
+        },
+        signedAt: {
+          not: null,
+        },
+      },
+      orderBy: {
+        _count: {
+          userId: "desc",
+        },
+      },
+      take: 8,
+    }),
+    prisma.personnelEvaluation.findMany({
+      where: {
+        workSchedule: {
+          agencyId: session.activeAgencyId,
+          workDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
+          },
+        },
+      },
+      select: {
+        score: true,
+        evaluatedUserId: true,
+        evaluatedUser: {
+          select: {
+            fullName: true,
+          },
+        },
+        criterion: {
+          select: {
+            impact: true,
+          },
+        },
+      },
+    }),
+    prisma.personnelEvaluation.groupBy({
+      by: ["criterionId"],
+      _count: {
+        _all: true,
+      },
+      where: {
+        workSchedule: {
+          agencyId: session.activeAgencyId,
+          workDate: {
+            gte: range.fromDate,
+            lte: range.toDate,
+          },
+        },
+      },
+      orderBy: {
+        _count: {
+          criterionId: "desc",
+        },
+      },
+      take: 8,
+    }),
+  ]);
 
-      return {
-        slug: reportType.slug,
-        title: reportType.title,
-        total,
-        unread,
-        grouped,
-      };
-    })
+  const signerUserIds = signerGroups.map(item => item.userId);
+  const criterionIds = criteriaRows.map(item => item.criterionId);
+  const leaderboardUserIds = Array.from(
+    new Set(evaluations.map(item => item.evaluatedUserId))
   );
 
-  const signatureRows = await prisma.signatureLog.findMany({
-    where: {
-      createdAt: {
-        gte: range.fromDate,
-        lte: range.toDate,
-      },
-    },
-    select: {
-      createdAt: true,
-      userId: true,
-    },
-  });
+  const [signerUsers, signerMemberships, criteria] = await Promise.all([
+    signerUserIds.length
+      ? prisma.user.findMany({
+          where: { id: { in: signerUserIds } },
+          select: {
+            id: true,
+            fullName: true,
+          },
+        })
+      : Promise.resolve([]),
+    signerUserIds.length || leaderboardUserIds.length
+      ? prisma.userAgencyMembership.findMany({
+          where: {
+            agencyId: session.activeAgencyId,
+            userId: {
+              in: Array.from(
+                new Set([...signerUserIds, ...leaderboardUserIds])
+              ),
+            },
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            role: true,
+          },
+        })
+      : Promise.resolve([]),
+    criterionIds.length
+      ? prisma.criterion.findMany({
+          where: {
+            id: {
+              in: criterionIds,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  const evaluationRows = await prisma.personnelEvaluation.findMany({
-    where: {
-      evaluationDate: {
-        gte: range.fromDate,
-        lte: range.toDate,
-      },
-    },
-    select: {
-      weightOverride: true,
-      user: {
-        select: {
-          id: true,
-          fullName: true,
-          role: true,
-        },
-      },
-      criteria: {
-        select: {
-          name: true,
-          impact: true,
-          defaultWeight: true,
-        },
-      },
-    },
-  });
+  const membershipByUserId = new Map(
+    signerMemberships.map(item => [item.userId, roleFromRaw(item.role)])
+  );
 
-  const trendReports = new Map<string, number>();
-  const trendIncidents = new Map<string, number>();
+  const usersById = new Map(signerUsers.map(item => [item.id, item.fullName]));
+  const criteriaById = new Map(criteria.map(item => [item.id, item.name]));
 
-  for (const reportType of reportTypeCounts) {
-    for (const point of reportType.grouped) {
-      const key = toDateOnly(point.reportDate);
-      addToMap(trendReports, key, point._count._all);
+  const trendByDate = new Map<string, DailyTrendPoint>();
 
-      if (reportType.slug !== "general") {
-        addToMap(trendIncidents, key, point._count._all);
-      }
+  for (let cursor = new Date(range.fromDate); cursor <= range.toDate; ) {
+    const date = toDateOnly(cursor);
+    trendByDate.set(date, {
+      date,
+      reports: 0,
+      incidents: 0,
+      signatures: 0,
+    });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  const reportTypeMap = new Map<string, BreakdownItem>();
+  const serviceMap = new Map<string, ServiceBreakdownItem>();
+
+  for (const report of reports) {
+    const dateKey = toDateOnly(report.workSchedule.workDate);
+    const trendPoint = trendByDate.get(dateKey);
+
+    if (trendPoint) {
+      trendPoint.reports += 1;
+    }
+
+    const serviceId = report.workSchedule.service.id;
+    const serviceName = report.workSchedule.service.name;
+
+    const reportType = reportTypeMap.get(serviceId) || {
+      slug: slugify(serviceName),
+      title: serviceName,
+      total: 0,
+      unread: 0,
+    };
+
+    reportType.total += 1;
+    if (!report.isRead) {
+      reportType.unread += 1;
+    }
+
+    reportTypeMap.set(serviceId, reportType);
+
+    const serviceEntry = serviceMap.get(serviceId) || {
+      service: serviceId,
+      label: serviceName,
+      incidentCount: 0,
+      reportCount: 0,
+    };
+
+    serviceEntry.reportCount += 1;
+    serviceMap.set(serviceId, serviceEntry);
+  }
+
+  const incidentTypeMap = new Map<string, BreakdownItem>();
+
+  for (const incident of incidentEntries) {
+    const dateKey = toDateOnly(incident.workSchedule.workDate);
+    const trendPoint = trendByDate.get(dateKey);
+
+    if (trendPoint) {
+      trendPoint.incidents += 1;
+    }
+
+    const key = incident.templateCodeSnapshot || incident.templateNameSnapshot;
+    const title = incident.templateNameSnapshot || "Incident";
+
+    const entry = incidentTypeMap.get(key) || {
+      slug: slugify(key || title || "incident"),
+      title,
+      total: 0,
+      unread: 0,
+    };
+
+    entry.total += 1;
+    incidentTypeMap.set(key, entry);
+
+    const serviceId = incident.workSchedule.service.id;
+    const serviceName = incident.workSchedule.service.name;
+    const serviceEntry = serviceMap.get(serviceId) || {
+      service: serviceId,
+      label: serviceName,
+      incidentCount: 0,
+      reportCount: 0,
+    };
+
+    serviceEntry.incidentCount += 1;
+    serviceMap.set(serviceId, serviceEntry);
+  }
+
+  for (const signature of signatureRows) {
+    const dateKey = toDateOnly(signature.workSchedule.workDate);
+    const trendPoint = trendByDate.get(dateKey);
+
+    if (trendPoint) {
+      trendPoint.signatures += 1;
     }
   }
-
-  const trendSignatures = new Map<string, number>();
-  const topSignerCounts = new Map<string, number>();
-
-  for (const row of signatureRows) {
-    const key = toDateOnly(row.createdAt);
-    addToMap(trendSignatures, key, 1);
-    addToMap(topSignerCounts, row.userId, 1);
-  }
-
-  const signerIds = [...topSignerCounts.keys()];
-  const signers = signerIds.length
-    ? await prisma.user.findMany({
-        where: { id: { in: signerIds } },
-        select: {
-          id: true,
-          fullName: true,
-          role: true,
-        },
-      })
-    : [];
-  const signerMap = new Map(signers.map(user => [user.id, user]));
-
-  const topSigners = [...topSignerCounts.entries()]
-    .map(([userId, count]) => {
-      const signer = signerMap.get(userId);
-
-      if (!signer) {
-        return null;
-      }
-
-      return {
-        userId,
-        count,
-        fullName: signer.fullName,
-        role: signer.role,
-      } satisfies TopSigner;
-    })
-    .filter((item): item is TopSigner => item !== null)
-    .sort((left, right) => right.count - left.count)
-    .slice(0, 5);
-
-  const criteriaUsageMap = new Map<string, CriterionUsage>();
-  const scoreMap = new Map<string, EvaluationScoreRow>();
 
   let positiveCount = 0;
   let negativeCount = 0;
-  let positiveWeight = 0;
-  let negativeWeight = 0;
+  let netScore = 0;
 
-  for (const row of evaluationRows) {
-    const weight = Number(
-      (row.weightOverride ?? row.criteria.defaultWeight).toString()
+  const leaderboardMap = new Map<string, LeaderboardItem>();
+
+  for (const evaluation of evaluations) {
+    const signed = signedEvaluationScore(
+      evaluation.score,
+      evaluation.criterion.impact
     );
 
-    if (row.criteria.impact === "POSITIVE") {
+    if (signed >= 0) {
       positiveCount += 1;
-      positiveWeight += weight;
     } else {
       negativeCount += 1;
-      negativeWeight += weight;
     }
 
-    const criteriaKey = `${row.criteria.impact}:${row.criteria.name}`;
-    const currentUsage = criteriaUsageMap.get(criteriaKey);
-    criteriaUsageMap.set(criteriaKey, {
-      name: row.criteria.name,
-      impact: row.criteria.impact,
-      count: (currentUsage?.count ?? 0) + 1,
-    });
+    netScore += signed;
 
-    const currentScore = scoreMap.get(row.user.id);
-    scoreMap.set(row.user.id, {
-      userId: row.user.id,
-      fullName: row.user.fullName,
-      role: row.user.role,
-      count: (currentScore?.count ?? 0) + 1,
-      score: (currentScore?.score ?? 0) + weight,
-    });
+    const userId = evaluation.evaluatedUserId;
+    const current = leaderboardMap.get(userId) || {
+      userId,
+      fullName: evaluation.evaluatedUser.fullName,
+      role: membershipByUserId.get(userId) || "worker",
+      count: 0,
+      score: 0,
+    };
+
+    current.count += 1;
+    current.score += signed;
+    leaderboardMap.set(userId, current);
   }
 
-  const criteriaUsage = [...criteriaUsageMap.values()].sort(
-    (left, right) => right.count - left.count
-  );
-  const scoreRows = [...scoreMap.values()].sort(
-    (left, right) => right.score - left.score
-  );
+  const topSigners: TopSignerItem[] = signerGroups.map(group => ({
+    userId: group.userId,
+    fullName: usersById.get(group.userId) || "Utilisateur",
+    role: membershipByUserId.get(group.userId) || "worker",
+    count: group._count._all,
+  }));
 
-  const serviceBreakdown = await Promise.all(
-    scopedServices.map(async service => {
-      const reportCounts = await Promise.all(
-        REPORT_TYPES.map(reportType =>
-          getReportDelegate(reportType.model).count({
-            where: buildReportWhere(reportType, range, service),
-          })
-        )
-      );
+  const criteriaUsage: CriteriaUsageItem[] = criteriaRows
+    .map(row => ({
+      name: criteriaById.get(row.criterionId) || "Critère",
+      count: row._count._all,
+    }))
+    .sort((left, right) => right.count - left.count);
 
-      const incidentCounts = await Promise.all(
-        INCIDENT_REPORT_TYPES.map(reportType =>
-          getReportDelegate(reportType.model).count({
-            where: buildReportWhere(reportType, range, service),
-          })
-        )
-      );
-
-      return {
-        service,
-        label: serviceLabel(service),
-        reportCount: reportCounts.reduce((sum, count) => sum + count, 0),
-        incidentCount: incidentCounts.reduce((sum, count) => sum + count, 0),
-      } satisfies ServiceBreakdownItem;
+  const leaderboardTop = Array.from(leaderboardMap.values())
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return right.count - left.count;
     })
+    .slice(0, 8);
+
+  const incidentBreakdown = Array.from(incidentTypeMap.values()).sort(
+    (left, right) => right.total - left.total
   );
 
-  const reportTypeBreakdown = reportTypeCounts.map(reportType => ({
-    slug: reportType.slug,
-    title: reportType.title,
-    total: reportType.total,
-    unread: reportType.unread,
-  }));
-  const incidentTypeBreakdown = reportTypeBreakdown.filter(
-    reportType => reportType.slug !== "general"
+  const reportBreakdown = Array.from(reportTypeMap.values()).sort(
+    (left, right) => right.total - left.total
   );
 
-  const reports = reportTypeBreakdown.reduce(
-    (sum, reportType) => sum + reportType.total,
-    0
+  const serviceBreakdown = Array.from(serviceMap.values()).sort(
+    (left, right) => right.incidentCount - left.incidentCount
   );
-  const unreadReports = reportTypeBreakdown.reduce(
-    (sum, reportType) => sum + reportType.unread,
-    0
-  );
-  const incidents = incidentTypeBreakdown.reduce(
-    (sum, reportType) => sum + reportType.total,
-    0
-  );
-  const netEvaluationScore = positiveWeight + negativeWeight;
 
-  const trend = enumerateDays(range).map(date => ({
-    date,
-    reports: trendReports.get(date) ?? 0,
-    incidents: trendIncidents.get(date) ?? 0,
-    signatures: trendSignatures.get(date) ?? 0,
-  }));
+  const unreadReports = reports.filter(report => !report.isRead).length;
 
   return {
     range: {
@@ -410,31 +504,26 @@ export async function getAnalyticsSnapshot(
       description: formatRangeLabel(range),
     },
     summary: {
-      reports,
+      reports: reports.length,
+      incidents: incidentEntries.length,
       unreadReports,
-      incidents,
       signatures: signatureRows.length,
-      netEvaluationScore,
+      netEvaluationScore: netScore,
       positiveEvaluations: positiveCount,
-      negativeEvaluations: negativeCount,
     },
-    trend,
+    trend: Array.from(trendByDate.values()),
+    incidentTypeBreakdown: incidentBreakdown,
+    reportTypeBreakdown: reportBreakdown,
     serviceBreakdown,
-    reportTypeBreakdown,
-    incidentTypeBreakdown,
     topSigners,
     evaluationSummary: {
-      total: evaluationRows.length,
       positiveCount,
       negativeCount,
-      positiveWeight,
-      negativeWeight,
-      netScore: netEvaluationScore,
+      netScore,
     },
-    criteriaUsage: criteriaUsage.slice(0, 6),
     leaderboard: {
-      top: scoreRows.slice(0, 5),
-      bottom: [...scoreRows].reverse().slice(0, 5),
+      top: leaderboardTop,
     },
+    criteriaUsage,
   };
 }

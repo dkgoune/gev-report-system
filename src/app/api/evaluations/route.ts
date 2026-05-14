@@ -1,51 +1,34 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
-import type { Role } from "@/generated/prisma/enums";
-import { canAccessPlatform } from "@/lib/authz";
+import type { MembershipRole } from "@/generated/prisma/enums";
+import {
+  canCreateEvaluations,
+  isAgencyAdmin,
+  canAccessAgencyAdminWorkspace,
+} from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { buildScopedUserWhere, listScopedUsers } from "@/lib/user-scope";
 
-const EVALUATION_TARGET_ROLES: Role[] = [
-  "agent",
-  "convoyer",
-  "leader",
-  "subleader",
+const EVALUATION_TARGET_ROLES: MembershipRole[] = [
+  "worker",
+  "reporter",
+  "scheduler",
 ];
-
-function normalizeDate(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  const date = new Date(`${trimmed}T00:00:00.000Z`);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
-}
 
 function normalizePage(value: string | null) {
   const parsed = Number(value);
-
   if (!Number.isInteger(parsed) || parsed < 1) {
     return 1;
   }
-
   return parsed;
 }
 
 function normalizePageSize(value: string | null) {
   const parsed = Number(value);
-
   if (parsed === 20 || parsed === 50) {
     return parsed;
   }
-
   return 10;
 }
 
@@ -53,63 +36,112 @@ function normalizeDateInput(value: string | null) {
   if (!value) {
     return "";
   }
-
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
 
 export async function GET(request: Request) {
   const session = await getServerSession();
 
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+    return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
   const search = (searchParams.get("q") || "").trim();
   const criteriaId = (searchParams.get("criteriaId") || "").trim();
+  const workScheduleId = (searchParams.get("workScheduleId") || "").trim();
   const startDate = normalizeDateInput(searchParams.get("from"));
   const endDate = normalizeDateInput(searchParams.get("to"));
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
-  const where: Prisma.PersonnelEvaluationWhereInput = {};
+  const where: Prisma.PersonnelEvaluationWhereInput = {
+    workSchedule: {
+      agencyId: session.activeAgencyId,
+    },
+  };
+  const workScheduleWhere: Prisma.WorkScheduleWhereInput = {
+    agencyId: session.activeAgencyId,
+  };
 
   if (search) {
     where.OR = [
-      { user: { fullName: { contains: search, mode: "insensitive" } } },
-      { criteria: { name: { contains: search, mode: "insensitive" } } },
-      { recordedBy: { fullName: { contains: search, mode: "insensitive" } } },
-      { recordedBy: { username: { contains: search, mode: "insensitive" } } },
-      { notes: { contains: search, mode: "insensitive" } },
+      {
+        evaluatedUser: { fullName: { contains: search, mode: "insensitive" } },
+      },
+      { criterion: { name: { contains: search, mode: "insensitive" } } },
+      {
+        evaluatingLeader: {
+          fullName: { contains: search, mode: "insensitive" },
+        },
+      },
+      { comment: { contains: search, mode: "insensitive" } },
+      {
+        workSchedule: {
+          service: { name: { contains: search, mode: "insensitive" } },
+        },
+      },
     ];
   }
 
   if (criteriaId) {
-    where.criteriaId = criteriaId;
+    where.criterionId = criteriaId;
+  }
+
+  if (workScheduleId) {
+    where.workScheduleId = workScheduleId;
   }
 
   if (startDate || endDate) {
-    where.evaluationDate = {};
+    workScheduleWhere.workDate = {};
 
     if (startDate) {
-      where.evaluationDate.gte = new Date(`${startDate}T00:00:00.000Z`);
+      workScheduleWhere.workDate = {
+        ...(workScheduleWhere.workDate as Prisma.DateTimeFilter<"WorkSchedule">),
+        gte: new Date(`${startDate}T00:00:00.000Z`),
+      };
     }
 
     if (endDate) {
-      where.evaluationDate.lte = new Date(`${endDate}T00:00:00.000Z`);
+      workScheduleWhere.workDate = {
+        ...(workScheduleWhere.workDate as Prisma.DateTimeFilter<"WorkSchedule">),
+        lte: new Date(`${endDate}T00:00:00.000Z`),
+      };
     }
+
+    where.workSchedule = workScheduleWhere;
   }
 
-  const [totalItems, users, criteria] = await Promise.all([
+  const [totalItems, users, criteria, schedules] = await Promise.all([
     prisma.personnelEvaluation.count({ where }),
     listScopedUsers(session, EVALUATION_TARGET_ROLES),
     prisma.criterion.findMany({
-      where: { isActive: true },
+      where: {
+        agencyId: session.activeAgencyId,
+        isActive: true,
+      },
       orderBy: [{ impact: "asc" }, { name: "asc" }],
       select: {
         id: true,
         name: true,
         impact: true,
-        defaultWeight: true,
+        maxDaily: true,
+      },
+    }),
+    prisma.workSchedule.findMany({
+      where: {
+        agencyId: session.activeAgencyId,
+        status: "published",
+      },
+      orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
+      take: 100,
+      select: {
+        id: true,
+        workDate: true,
+        service: {
+          select: {
+            name: true,
+          },
+        },
       },
     }),
   ]);
@@ -119,37 +151,46 @@ export async function GET(request: Request) {
 
   const evaluations = await prisma.personnelEvaluation.findMany({
     where,
-    orderBy: [{ evaluationDate: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
     select: {
       id: true,
-      evaluationDate: true,
-      weightOverride: true,
-      notes: true,
+      score: true,
+      comment: true,
       createdAt: true,
-      user: {
+      updatedAt: true,
+      evaluatedUser: {
         select: {
           id: true,
           fullName: true,
-          role: true,
           isActive: true,
         },
       },
-      criteria: {
+      criterion: {
         select: {
           id: true,
           name: true,
           impact: true,
-          defaultWeight: true,
           isActive: true,
         },
       },
-      recordedBy: {
+      evaluatingLeader: {
         select: {
           id: true,
           fullName: true,
           username: true,
+        },
+      },
+      workSchedule: {
+        select: {
+          id: true,
+          workDate: true,
+          service: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
@@ -157,22 +198,24 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     users,
-    criteria: criteria.map(criterion => ({
-      ...criterion,
-      defaultWeight: criterion.defaultWeight.toString(),
+    criteria,
+    schedules: schedules.map(schedule => ({
+      ...schedule,
+      workDate: schedule.workDate.toISOString(),
     })),
     evaluations: evaluations.map(evaluation => ({
       id: evaluation.id,
-      evaluationDate: evaluation.evaluationDate.toISOString(),
-      weightOverride: evaluation.weightOverride?.toString() ?? null,
-      notes: evaluation.notes,
+      score: evaluation.score,
+      comment: evaluation.comment,
       createdAt: evaluation.createdAt.toISOString(),
-      user: evaluation.user,
-      criteria: {
-        ...evaluation.criteria,
-        defaultWeight: evaluation.criteria.defaultWeight.toString(),
+      updatedAt: evaluation.updatedAt.toISOString(),
+      evaluatedUser: evaluation.evaluatedUser,
+      criterion: evaluation.criterion,
+      evaluatingLeader: evaluation.evaluatingLeader,
+      workSchedule: {
+        ...evaluation.workSchedule,
+        workDate: evaluation.workSchedule.workDate.toISOString(),
       },
-      recordedBy: evaluation.recordedBy,
     })),
     pagination: {
       page,
@@ -182,6 +225,7 @@ export async function GET(request: Request) {
     },
     filters: {
       criteriaId,
+      workScheduleId,
       endDate,
       search,
       startDate,
@@ -192,92 +236,121 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessPlatform(session.role)) {
-    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  if (!session || !canCreateEvaluations(session)) {
+    return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
   try {
     const body = (await request.json()) as Partial<{
-      userId: string;
-      criteriaId: string;
-      evaluationDate: string;
-      weightOverride: string;
-      notes: string;
+      evaluatedUserId: string;
+      criterionId: string;
+      workScheduleId: string;
+      score: number | string;
+      comment: string;
     }>;
 
-    const userId = body.userId?.trim();
-    const criteriaId = body.criteriaId?.trim();
-    const evaluationDate = body.evaluationDate?.trim();
-    const notes = body.notes?.trim() || null;
+    const evaluatedUserId = body.evaluatedUserId?.trim();
+    const criterionId = body.criterionId?.trim();
+    const workScheduleId = body.workScheduleId?.trim();
+    const comment = body.comment?.trim() || null;
+    const score = Number(body.score);
 
-    if (!userId || !criteriaId || !evaluationDate) {
+    if (!evaluatedUserId || !criterionId || !workScheduleId) {
       return NextResponse.json(
         {
-          error:
-            "Le personnel, le critère et la date d'évaluation sont obligatoires.",
+          error: "Le personnel, le critere et le planning sont obligatoires.",
         },
         { status: 400 }
       );
     }
 
-    const parsedDate = normalizeDate(evaluationDate);
-
-    if (!parsedDate) {
+    if (!Number.isInteger(score) || score < 0) {
       return NextResponse.json(
-        { error: "Date d'évaluation invalide." },
+        { error: "Le score doit etre un entier positif." },
         { status: 400 }
       );
     }
 
-    if (body.weightOverride?.trim()) {
-      return NextResponse.json(
-        {
-          error:
-            "Le poids personnalise n'est plus disponible lors de la saisie d'une evaluation.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const [user, criterion] = await Promise.all([
+    const [evaluatedUser, criterion, workSchedule] = await Promise.all([
       prisma.user.findFirst({
         where: {
           ...buildScopedUserWhere(session, EVALUATION_TARGET_ROLES),
-          id: userId,
+          id: evaluatedUserId,
         },
         select: {
           id: true,
           isActive: true,
-          role: true,
         },
       }),
-      prisma.criterion.findUnique({
-        where: { id: criteriaId },
+      prisma.criterion.findFirst({
+        where: {
+          id: criterionId,
+          agencyId: session.activeAgencyId,
+        },
         select: {
           id: true,
           isActive: true,
           maxDaily: true,
         },
       }),
+      prisma.workSchedule.findFirst({
+        where: {
+          id: workScheduleId,
+          agencyId: session.activeAgencyId,
+        },
+        select: {
+          id: true,
+          workDate: true,
+          status: true,
+          assignments: {
+            where: {
+              userId: evaluatedUserId,
+            },
+            select: {
+              id: true,
+            },
+          },
+        },
+      }),
     ]);
 
-    if (!user || !user.isActive) {
+    if (!evaluatedUser || !evaluatedUser.isActive) {
       return NextResponse.json(
-        { error: "Le personnel sélectionné est introuvable ou inactif." },
-        { status: 400 }
-      );
-    }
-
-    if (user.role === "admin") {
-      return NextResponse.json(
-        { error: "Les administrateurs ne peuvent pas être évalués." },
+        { error: "Le personnel selectionne est introuvable ou inactif." },
         { status: 400 }
       );
     }
 
     if (!criterion || !criterion.isActive) {
       return NextResponse.json(
-        { error: "Le critère sélectionné est introuvable ou inactif." },
+        { error: "Le critere selectionne est introuvable ou inactif." },
+        { status: 400 }
+      );
+    }
+
+    if (!workSchedule) {
+      return NextResponse.json(
+        { error: "Le planning selectionne est introuvable." },
+        { status: 400 }
+      );
+    }
+
+    if (workSchedule.status === "archived") {
+      return NextResponse.json(
+        {
+          error:
+            "Ce planning est archive et ne peut plus recevoir d'evaluation.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!workSchedule.assignments.length && !isAgencyAdmin(session)) {
+      return NextResponse.json(
+        {
+          error:
+            "Le personnel selectionne n'est pas assigne a ce planning pour cette agence.",
+        },
         { status: 400 }
       );
     }
@@ -285,11 +358,11 @@ export async function POST(request: Request) {
     if (criterion.maxDaily !== null) {
       const sameDayCount = await prisma.personnelEvaluation.count({
         where: {
-          userId,
-          criteriaId,
-          evaluationDate: {
-            gte: new Date(`${evaluationDate}T00:00:00.000Z`),
-            lte: new Date(`${evaluationDate}T23:59:59.999Z`),
+          evaluatedUserId,
+          criterionId,
+          workSchedule: {
+            agencyId: session.activeAgencyId,
+            workDate: workSchedule.workDate,
           },
         },
       });
@@ -299,50 +372,26 @@ export async function POST(request: Request) {
           ok: true,
           skipped: true,
           message:
-            "La limite quotidienne de ce critère est déjà atteinte pour ce personnel. L'évaluation a été ignorée.",
+            "La limite quotidienne de ce critere est deja atteinte pour ce personnel.",
         });
       }
     }
 
     const evaluation = await prisma.personnelEvaluation.create({
       data: {
-        userId,
-        criteriaId,
-        evaluationDate: parsedDate,
-        weightOverride: null,
-        notes,
-        recordedById: session.userId,
+        workScheduleId,
+        evaluatedUserId,
+        evaluatingLeaderId: session.userId,
+        criterionId,
+        score,
+        comment,
       },
       select: {
         id: true,
-        evaluationDate: true,
-        weightOverride: true,
-        notes: true,
+        score: true,
+        comment: true,
         createdAt: true,
-        user: {
-          select: {
-            id: true,
-            fullName: true,
-            role: true,
-            isActive: true,
-          },
-        },
-        criteria: {
-          select: {
-            id: true,
-            name: true,
-            impact: true,
-            defaultWeight: true,
-            isActive: true,
-          },
-        },
-        recordedBy: {
-          select: {
-            id: true,
-            fullName: true,
-            username: true,
-          },
-        },
+        updatedAt: true,
       },
     });
 
@@ -350,26 +399,18 @@ export async function POST(request: Request) {
       {
         ok: true,
         skipped: false,
-        message: "Évaluation enregistrée.",
+        message: "Evaluation enregistree.",
         evaluation: {
-          id: evaluation.id,
-          evaluationDate: evaluation.evaluationDate.toISOString(),
-          weightOverride: evaluation.weightOverride?.toString() ?? null,
-          notes: evaluation.notes,
+          ...evaluation,
           createdAt: evaluation.createdAt.toISOString(),
-          user: evaluation.user,
-          criteria: {
-            ...evaluation.criteria,
-            defaultWeight: evaluation.criteria.defaultWeight.toString(),
-          },
-          recordedBy: evaluation.recordedBy,
+          updatedAt: evaluation.updatedAt.toISOString(),
         },
       },
       { status: 201 }
     );
   } catch {
     return NextResponse.json(
-      { error: "Impossible d'enregistrer l'évaluation." },
+      { error: "Impossible d'enregistrer l'evaluation." },
       { status: 500 }
     );
   }

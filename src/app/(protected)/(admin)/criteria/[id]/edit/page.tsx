@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { CriterionEditorForm } from "@/components/criteria-management/criterion-editor-form";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -17,19 +17,22 @@ export default async function EditCriterionPage({
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const { id } = await params;
 
-  const criterion = await prisma.criterion.findUnique({
-    where: { id },
+  const criterion = await prisma.criterion.findFirst({
+    where: {
+      id,
+      agencyId: session.activeAgencyId,
+    },
     select: {
       id: true,
       name: true,
       impact: true,
-      defaultWeight: true,
+      weight: true,
       maxDaily: true,
       isActive: true,
     },
@@ -46,7 +49,7 @@ export default async function EditCriterionPage({
       initialState={{
         name: criterion.name,
         impact: criterion.impact,
-        defaultWeight: criterion.defaultWeight.toString(),
+        weight: criterion.weight.toString(),
         maxDaily: criterion.maxDaily === null ? "" : String(criterion.maxDaily),
         isActive: criterion.isActive,
       }}

@@ -1,24 +1,21 @@
 import "dotenv/config";
 import { scryptSync } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../../src/generated/prisma/client";
+import { Prisma, PrismaClient } from "../../src/generated/prisma/client";
 import {
   getSeedUsers,
-  SEED_GROUPS,
+  SEED_AGENCIES,
   SEED_ATTENDANCE_CRITERION_SETTINGS,
-  SEED_BORDEREAUX_NON_CONFORMES,
-  SEED_COLIS_HORS_BORDEREAU,
-  SEED_COLIS_NON_IDENTIFIES,
-  SEED_COLIS_NON_VUS,
-  SEED_COLIS_RETARDES,
-  SEED_COLIS_TRANSFERES,
-  SEED_CONVOYEURS_ABSENTS,
   SEED_CRITERIA,
-  SEED_DAILY_GENERAL_REPORTS,
-  SEED_ERREURS_DESTINATION,
+  SEED_GENERAL_REPORTS,
+  SEED_INCIDENT_TEMPLATES,
+  SEED_INCIDENT_TEMPLATE_VERSIONS,
   SEED_PERSONNEL_EVALUATIONS,
+  SEED_SERVICE_INCIDENT_BINDINGS,
+  SEED_SERVICES,
   SEED_SIGNATURE_LOGS,
-  SEED_VEHICULES_EMBARQUES,
+  SEED_WORK_POSTS,
+  SEED_WORK_SCHEDULES,
   type RootSeedConfig,
 } from "./data";
 
@@ -48,8 +45,8 @@ function toDateOnly(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-function toDateTime(value: string): Date {
-  return new Date(value);
+function toDateTime(value: string | null): Date | null {
+  return value ? new Date(value) : null;
 }
 
 function hashSeedPassword(password: string, saltSource: string): string {
@@ -58,18 +55,14 @@ function hashSeedPassword(password: string, saltSource: string): string {
   return `scrypt$${salt}$${hash}`;
 }
 
-function getRequiredId(
-  store: Map<string, { id: string }>,
-  key: string,
-  label: string
-): string {
-  const item = store.get(key);
+function getRequiredId(store: Map<string, string>, key: string, label: string) {
+  const value = store.get(key);
 
-  if (!item) {
+  if (!value) {
     throw new Error(`Missing seed reference for ${label}: ${key}`);
   }
 
-  return item.id;
+  return value;
 }
 
 function assertUniqueUsernames(usernames: string[]) {
@@ -78,482 +71,507 @@ function assertUniqueUsernames(usernames: string[]) {
   }
 }
 
-function toDateKey(value: Date): string {
-  return value.toISOString().slice(0, 10);
+function toJson(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }
 
 export async function runSeed() {
   const prisma = createClient();
   const rootConfig = readRootConfig();
   const userDefinitions = getSeedUsers(rootConfig);
-  const groupServiceByKey = new Map(
-    SEED_GROUPS.map(group => [group.key, group.service])
-  );
-  const groupKeyByService = new Map(
-    SEED_GROUPS.map(group => [group.service, group.key])
-  );
-  const userGroupKeyByKey = new Map(
-    userDefinitions.map(user => [user.key, user.groupKey])
-  );
 
   assertUniqueUsernames(userDefinitions.map(user => user.username));
 
-  console.log("[seed] Resetting and loading deterministic sample data...");
+  const userIdsByKey = new Map<string, string>();
+  const agencyIdsByKey = new Map<string, string>();
+  const serviceIdsByKey = new Map<string, string>();
+  const workPostIdsByKey = new Map<string, string>();
+  const criterionIdsByKey = new Map<string, string>();
+  const templateIdsByKey = new Map<string, string>();
+  const templateVersionIdsByKey = new Map<string, string>();
+  const bindingIdsByKey = new Map<string, string>();
+  const workScheduleIdsByKey = new Map<string, string>();
+
+  const templateDefinitionsByKey = new Map(
+    SEED_INCIDENT_TEMPLATES.map(template => [template.key, template])
+  );
+  const templateVersionDefinitionsByKey = new Map(
+    SEED_INCIDENT_TEMPLATE_VERSIONS.map(version => [version.key, version])
+  );
+
+  console.log(
+    "[seed] Resetting and loading current service/report fixtures..."
+  );
 
   try {
-    await prisma.$transaction([
-      prisma.personnelEvaluation.deleteMany(),
-      prisma.attendanceCriterionSetting.deleteMany(),
-      prisma.criterion.deleteMany(),
-      prisma.signatureLog.deleteMany(),
-      prisma.vehiculeEmbarque.deleteMany(),
-      prisma.bordereauNonConforme.deleteMany(),
-      prisma.convoyeurAbsent.deleteMany(),
-      prisma.colisTransfere.deleteMany(),
-      prisma.colisNonIdentifie.deleteMany(),
-      prisma.colisRetarde.deleteMany(),
-      prisma.erreurDestination.deleteMany(),
-      prisma.colisHorsBordereau.deleteMany(),
-      prisma.colisNonVu.deleteMany(),
-      prisma.dailyGeneralReport.deleteMany(),
-      prisma.group.deleteMany(),
-      prisma.user.deleteMany(),
-    ]);
-
-    await prisma.user.createMany({
-      data: userDefinitions.map(user => ({
-        fullName: user.fullName,
-        username: user.username,
-        password: hashSeedPassword(user.password, user.username),
-        role: user.role,
-        phone: user.phone,
-        isActive: user.isActive,
-      })),
-    });
-
-    const createdUsers = await prisma.user.findMany({
-      select: {
-        id: true,
-        username: true,
-      },
-    });
-
-    const usersByUsername = new Map(
-      createdUsers.map(user => [user.username, { id: user.id }])
-    );
-    const userIdsByKey = new Map<string, { id: string }>();
+    await prisma.signatureLog.deleteMany();
+    await prisma.generalReportIncidentEntry.deleteMany();
+    await prisma.generalReport.deleteMany();
+    await prisma.personnelEvaluation.deleteMany();
+    await prisma.workScheduleIncidentRequirement.deleteMany();
+    await prisma.serviceIncidentBinding.deleteMany();
+    await prisma.incidentTemplateVersion.deleteMany();
+    await prisma.incidentTemplate.deleteMany();
+    await prisma.workScheduleAssignment.deleteMany();
+    await prisma.workSchedule.deleteMany();
+    await prisma.attendanceCriterionSetting.deleteMany();
+    await prisma.criterion.deleteMany();
+    await prisma.workPost.deleteMany();
+    await prisma.serviceDefinition.deleteMany();
+    await prisma.userAgencyMembership.deleteMany();
+    await prisma.agency.deleteMany();
+    await prisma.user.deleteMany();
 
     for (const user of userDefinitions) {
-      const createdUser = usersByUsername.get(user.username);
+      const createdUser = await prisma.user.create({
+        data: {
+          username: user.username,
+          password: hashSeedPassword(user.password, user.username),
+          fullName: user.fullName,
+          phone: user.phone,
+          systemRole: user.systemRole,
+          isActive: user.isActive,
+        },
+      });
 
-      if (!createdUser) {
-        throw new Error(`Seed user '${user.username}' was not created.`);
-      }
-
-      userIdsByKey.set(user.key, createdUser);
+      userIdsByKey.set(user.key, createdUser.id);
     }
 
-    await prisma.group.createMany({
-      data: SEED_GROUPS.map(group => ({
-        name: group.name,
-        service: group.service,
-        isActive: group.isActive,
-      })),
-    });
+    for (const agency of SEED_AGENCIES) {
+      const createdAgency = await prisma.agency.create({
+        data: {
+          name: agency.name,
+          code: agency.code,
+          isActive: agency.isActive,
+        },
+      });
 
-    const createdGroups = await prisma.group.findMany({
-      select: {
-        id: true,
-        name: true,
-        service: true,
-      },
-    });
-
-    const groupsBySignature = new Map(
-      createdGroups.map(group => [
-        `${group.name}:${group.service}`,
-        { id: group.id },
-      ])
-    );
-    const groupIdsByKey = new Map<string, { id: string }>();
-
-    for (const group of SEED_GROUPS) {
-      const createdGroup = groupsBySignature.get(
-        `${group.name}:${group.service}`
-      );
-
-      if (!createdGroup) {
-        throw new Error(`Seed group '${group.name}' was not created.`);
-      }
-
-      groupIdsByKey.set(group.key, createdGroup);
+      agencyIdsByKey.set(agency.key, createdAgency.id);
     }
 
-    await Promise.all(
-      userDefinitions
-        .filter(user => user.groupKey)
-        .map(user =>
-          prisma.user.update({
-            where: { id: getRequiredId(userIdsByKey, user.key, "group user") },
-            data: {
-              groupId: getRequiredId(
-                groupIdsByKey,
-                user.groupKey as string,
-                "user group"
-              ),
-            },
-          })
-        )
-    );
+    for (const user of userDefinitions) {
+      for (const membership of user.memberships) {
+        await prisma.userAgencyMembership.create({
+          data: {
+            userId: getRequiredId(userIdsByKey, user.key, "membership user"),
+            agencyId: getRequiredId(
+              agencyIdsByKey,
+              membership.agencyKey,
+              "membership agency"
+            ),
+            role: membership.role,
+            isActive: membership.isActive,
+          },
+        });
+      }
+    }
 
-    await prisma.criterion.createMany({
-      data: SEED_CRITERIA.map(criterion => ({
-        name: criterion.name,
-        impact: criterion.impact,
-        defaultWeight: criterion.defaultWeight,
-        maxDaily: criterion.maxDaily,
-        isActive: criterion.isActive,
-        createdById: getRequiredId(userIdsByKey, "root", "criterion creator"),
-      })),
-    });
+    for (const service of SEED_SERVICES) {
+      const createdService = await prisma.serviceDefinition.create({
+        data: {
+          agencyId: getRequiredId(
+            agencyIdsByKey,
+            service.agencyKey,
+            "service agency"
+          ),
+          name: service.name,
+          code: service.code,
+          description: service.description,
+          color: service.color,
+          isActive: service.isActive,
+          createdById: getRequiredId(
+            userIdsByKey,
+            service.createdByKey,
+            "service creator"
+          ),
+        },
+      });
 
-    const createdCriteria = await prisma.criterion.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+      serviceIdsByKey.set(service.key, createdService.id);
+    }
 
-    const criteriaByName = new Map(
-      createdCriteria.map(criterion => [criterion.name, { id: criterion.id }])
-    );
-    const criterionIdsByKey = new Map<string, { id: string }>();
+    for (const workPost of SEED_WORK_POSTS) {
+      const createdWorkPost = await prisma.workPost.create({
+        data: {
+          agencyId: getRequiredId(
+            agencyIdsByKey,
+            workPost.agencyKey,
+            "work post agency"
+          ),
+          name: workPost.name,
+          code: workPost.code,
+          description: workPost.description,
+          isActive: workPost.isActive,
+          createdById: getRequiredId(
+            userIdsByKey,
+            workPost.createdByKey,
+            "work post creator"
+          ),
+        },
+      });
+
+      workPostIdsByKey.set(workPost.key, createdWorkPost.id);
+    }
 
     for (const criterion of SEED_CRITERIA) {
-      const createdCriterion = criteriaByName.get(criterion.name);
+      const createdCriterion = await prisma.criterion.create({
+        data: {
+          agencyId: getRequiredId(
+            agencyIdsByKey,
+            criterion.agencyKey,
+            "criterion agency"
+          ),
+          name: criterion.name,
+          impact: criterion.impact,
+          weight: criterion.weight,
+          maxDaily: criterion.maxDaily,
+          isActive: criterion.isActive,
+          createdById: getRequiredId(
+            userIdsByKey,
+            criterion.createdByKey,
+            "criterion creator"
+          ),
+        },
+      });
 
-      if (!createdCriterion) {
-        throw new Error(`Seed criterion '${criterion.name}' was not created.`);
-      }
-
-      criterionIdsByKey.set(criterion.key, createdCriterion);
+      criterionIdsByKey.set(criterion.key, createdCriterion.id);
     }
 
-    await prisma.attendanceCriterionSetting.createMany({
-      data: SEED_ATTENDANCE_CRITERION_SETTINGS.map(setting => ({
-        criterionId: getRequiredId(
-          criterionIdsByKey,
-          setting.criterionKey,
-          "attendance criterion"
-        ),
-        status: setting.status,
-        createdById: getRequiredId(
-          userIdsByKey,
-          "root",
-          "attendance setting creator"
-        ),
-      })),
-    });
+    for (const setting of SEED_ATTENDANCE_CRITERION_SETTINGS) {
+      await prisma.attendanceCriterionSetting.create({
+        data: {
+          agencyId: getRequiredId(
+            agencyIdsByKey,
+            setting.agencyKey,
+            "attendance agency"
+          ),
+          criterionId: getRequiredId(
+            criterionIdsByKey,
+            setting.criterionKey,
+            "attendance criterion"
+          ),
+          isEnabled: setting.isEnabled,
+          createdById: getRequiredId(
+            userIdsByKey,
+            setting.createdByKey,
+            "attendance setting creator"
+          ),
+        },
+      });
+    }
 
-    await prisma.dailyGeneralReport.createMany({
-      data: SEED_DAILY_GENERAL_REPORTS.map(report => ({
-        groupId: getRequiredId(
-          groupIdsByKey,
-          report.groupKey,
-          "daily report group"
-        ),
-        reportDate: toDateOnly(report.reportDate),
-        service:
-          groupServiceByKey.get(report.groupKey) ??
-          (() => {
-            throw new Error(
-              `Missing service for report group: ${report.groupKey}`
-            );
-          })(),
-        personnelPresent: report.personnelPresent,
-        personnelAbsent: report.personnelAbsent,
-        ambianceGenerale: report.ambianceGenerale,
-        problemesRencontres: report.problemesRencontres,
-        etatGeneralService: report.etatGeneralService,
-        passationService: report.passationService,
-        observationGeneral: report.observationGeneral,
-        createdAt: toDateTime(report.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          report.reportedByKey,
-          "daily report reporter"
-        ),
-      })),
-    });
+    for (const template of SEED_INCIDENT_TEMPLATES) {
+      const createdTemplate = await prisma.incidentTemplate.create({
+        data: {
+          agencyId: getRequiredId(
+            agencyIdsByKey,
+            template.agencyKey,
+            "template agency"
+          ),
+          name: template.name,
+          code: template.code,
+          description: template.description,
+          icon: template.icon,
+          isActive: template.isActive,
+          createdById: getRequiredId(
+            userIdsByKey,
+            template.createdByKey,
+            "template creator"
+          ),
+        },
+      });
 
-    const dailyReports = await prisma.dailyGeneralReport.findMany({
-      select: {
-        id: true,
-        groupId: true,
-        reportDate: true,
-        service: true,
-      },
-    });
+      templateIdsByKey.set(template.key, createdTemplate.id);
+    }
 
-    const dailyReportIdsBySignature = new Map(
-      dailyReports.map(report => [
-        `${toDateKey(report.reportDate)}:${report.groupId}`,
-        report.id,
-      ])
-    );
+    for (const version of SEED_INCIDENT_TEMPLATE_VERSIONS) {
+      const createdVersion = await prisma.incidentTemplateVersion.create({
+        data: {
+          templateId: getRequiredId(
+            templateIdsByKey,
+            version.templateKey,
+            "template version template"
+          ),
+          version: version.version,
+          fieldsJson: toJson(version.fields),
+          status: version.status,
+          publishedAt: toDateTime(version.publishedAt),
+          createdById: getRequiredId(
+            userIdsByKey,
+            version.createdByKey,
+            "template version creator"
+          ),
+        },
+      });
 
-    const getGeneralReportId = (
-      reportDate: string,
-      groupKey: string | null | undefined
-    ) => {
-      if (!groupKey) {
-        return null;
+      templateVersionIdsByKey.set(version.key, createdVersion.id);
+    }
+
+    for (const binding of SEED_SERVICE_INCIDENT_BINDINGS) {
+      const createdBinding = await prisma.serviceIncidentBinding.create({
+        data: {
+          serviceId: getRequiredId(
+            serviceIdsByKey,
+            binding.serviceKey,
+            "binding service"
+          ),
+          templateId: getRequiredId(
+            templateIdsByKey,
+            binding.templateKey,
+            "binding template"
+          ),
+          templateVersionId: getRequiredId(
+            templateVersionIdsByKey,
+            binding.templateVersionKey,
+            "binding template version"
+          ),
+          minEntries: binding.minEntries,
+          maxEntries: binding.maxEntries,
+          isRequired: binding.isRequired,
+          displayOrder: binding.displayOrder,
+          isActive: binding.isActive,
+        },
+      });
+
+      bindingIdsByKey.set(binding.key, createdBinding.id);
+    }
+
+    for (const schedule of SEED_WORK_SCHEDULES) {
+      const createdSchedule = await prisma.workSchedule.create({
+        data: {
+          agencyId: getRequiredId(
+            agencyIdsByKey,
+            schedule.agencyKey,
+            "schedule agency"
+          ),
+          serviceId: getRequiredId(
+            serviceIdsByKey,
+            schedule.serviceKey,
+            "schedule service"
+          ),
+          workDate: toDateOnly(schedule.workDate),
+          status: schedule.status,
+          createdById: getRequiredId(
+            userIdsByKey,
+            schedule.createdByKey,
+            "schedule creator"
+          ),
+          publishedAt: toDateTime(schedule.publishedAt),
+          archivedAt: toDateTime(schedule.archivedAt),
+        },
+      });
+
+      workScheduleIdsByKey.set(schedule.key, createdSchedule.id);
+
+      for (const assignment of schedule.assignments) {
+        await prisma.workScheduleAssignment.create({
+          data: {
+            workScheduleId: createdSchedule.id,
+            userId: getRequiredId(
+              userIdsByKey,
+              assignment.userKey,
+              "assignment user"
+            ),
+            postId: getRequiredId(
+              workPostIdsByKey,
+              assignment.postKey,
+              "assignment post"
+            ),
+            isLeader: assignment.isLeader,
+            isSubleader: assignment.isSubleader,
+            attendanceStatus: assignment.attendanceStatus,
+          },
+        });
       }
 
-      const groupId = groupIdsByKey.get(groupKey)?.id;
+      const activeBindings = SEED_SERVICE_INCIDENT_BINDINGS.filter(
+        binding =>
+          binding.serviceKey === schedule.serviceKey && binding.isActive
+      ).sort((left, right) => left.displayOrder - right.displayOrder);
 
-      if (!groupId) {
-        return null;
+      for (const binding of activeBindings) {
+        const template = templateDefinitionsByKey.get(binding.templateKey);
+        const version = templateVersionDefinitionsByKey.get(
+          binding.templateVersionKey
+        );
+
+        if (!template || !version) {
+          throw new Error(
+            `Missing incident metadata for binding: ${binding.key}`
+          );
+        }
+
+        await prisma.workScheduleIncidentRequirement.create({
+          data: {
+            workScheduleId: createdSchedule.id,
+            serviceIncidentBindingId: getRequiredId(
+              bindingIdsByKey,
+              binding.key,
+              "schedule requirement binding"
+            ),
+            templateId: getRequiredId(
+              templateIdsByKey,
+              binding.templateKey,
+              "schedule requirement template"
+            ),
+            templateVersionId: getRequiredId(
+              templateVersionIdsByKey,
+              binding.templateVersionKey,
+              "schedule requirement version"
+            ),
+            configSnapshotJson: toJson({
+              binding: {
+                minEntries: binding.minEntries,
+                maxEntries: binding.maxEntries,
+                isRequired: binding.isRequired,
+                displayOrder: binding.displayOrder,
+                isActive: binding.isActive,
+              },
+              template: {
+                name: template.name,
+                code: template.code,
+                description: template.description,
+              },
+              templateVersion: {
+                version: version.version,
+                status: version.status,
+                publishedAt: version.publishedAt,
+              },
+              fields: version.fields,
+            }),
+            displayOrder: binding.displayOrder,
+            isActive: binding.isActive,
+          },
+        });
       }
+    }
 
-      return dailyReportIdsBySignature.get(`${reportDate}:${groupId}`) ?? null;
-    };
+    for (const report of SEED_GENERAL_REPORTS) {
+      const createdReport = await prisma.generalReport.create({
+        data: {
+          workScheduleId: getRequiredId(
+            workScheduleIdsByKey,
+            report.workScheduleKey,
+            "general report schedule"
+          ),
+          reportedById: getRequiredId(
+            userIdsByKey,
+            report.reportedByKey,
+            "general report reporter"
+          ),
+          readById: report.readByKey
+            ? getRequiredId(
+                userIdsByKey,
+                report.readByKey,
+                "general report reader"
+              )
+            : null,
+          isRead: report.isRead,
+          readAt: toDateTime(report.readAt),
+          personnelPresent: report.personnelPresent,
+          personnelAbsent: report.personnelAbsent,
+          ambianceGenerale: report.ambianceGenerale,
+          problemesRencontres: report.problemesRencontres,
+          etatGeneralService: report.etatGeneralService,
+          passationService: report.passationService,
+          observationGeneral: report.observationGeneral,
+        },
+      });
 
-    await prisma.colisNonVu.createMany({
-      data: SEED_COLIS_NON_VUS.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        service: record.service,
-        destination: record.destination ?? null,
-        provenance: record.provenance ?? null,
-        personnesContactees: record.personnesContactees ?? null,
-        immatriculation: record.immatriculation ?? null,
-        agenceDepart: record.agenceDepart,
-        description: record.description,
-        destinataire: record.destinataire ?? null,
-        actionMenee: record.actionMenee ?? null,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "colis non vu reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          groupKeyByService.get(record.service) ?? null
-        ),
-      })),
-    });
+      for (const entry of report.incidentEntries) {
+        const template = templateDefinitionsByKey.get(entry.templateKey);
+        const version = templateVersionDefinitionsByKey.get(
+          entry.templateVersionKey
+        );
 
-    await prisma.colisHorsBordereau.createMany({
-      data: SEED_COLIS_HORS_BORDEREAU.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        agenceDepart: record.agenceDepart,
-        description: record.description,
-        destinataire: record.destinataire,
-        destinatairePhone: record.destinatairePhone,
-        actionMenee: record.actionMenee,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "hors bordereau reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
+        if (!template || !version) {
+          throw new Error(
+            `Missing incident snapshot metadata for report entry on ${report.workScheduleKey}`
+          );
+        }
 
-    await prisma.erreurDestination.createMany({
-      data: SEED_ERREURS_DESTINATION.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        nom: record.nom ?? null,
-        telephone: record.telephone ?? null,
-        destinataire: record.destinataire ?? null,
-        equipeFacturation: record.equipeFacturation ?? null,
-        immatriculation: record.immatriculation ?? null,
-        destination: record.destination ?? null,
-        description: record.description,
-        destinationPrevue: record.destinationPrevue ?? null,
-        destinationErronee: record.destinationErronee ?? null,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "erreur destination reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
+        await prisma.generalReportIncidentEntry.create({
+          data: {
+            generalReportId: createdReport.id,
+            workScheduleId: getRequiredId(
+              workScheduleIdsByKey,
+              report.workScheduleKey,
+              "report incident schedule"
+            ),
+            templateId: getRequiredId(
+              templateIdsByKey,
+              entry.templateKey,
+              "report template"
+            ),
+            templateVersionId: getRequiredId(
+              templateVersionIdsByKey,
+              entry.templateVersionKey,
+              "report template version"
+            ),
+            templateNameSnapshot: template.name,
+            templateCodeSnapshot: template.code,
+            valuesJson: toJson(entry.values),
+            schemaSnapshotJson: toJson(version.fields),
+            displayOrder: entry.displayOrder,
+          },
+        });
+      }
+    }
 
-    await prisma.colisRetarde.createMany({
-      data: SEED_COLIS_RETARDES.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        codeColis: record.codeColis,
-        description: record.description,
-        destinataire: record.destinataire,
-        motifRetard: record.motifRetard,
-        actionEnCours: record.actionEnCours,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "colis retarde reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
+    for (const evaluation of SEED_PERSONNEL_EVALUATIONS) {
+      await prisma.personnelEvaluation.create({
+        data: {
+          workScheduleId: getRequiredId(
+            workScheduleIdsByKey,
+            evaluation.workScheduleKey,
+            "evaluation schedule"
+          ),
+          evaluatedUserId: getRequiredId(
+            userIdsByKey,
+            evaluation.evaluatedUserKey,
+            "evaluated user"
+          ),
+          evaluatingLeaderId: getRequiredId(
+            userIdsByKey,
+            evaluation.evaluatingLeaderKey,
+            "evaluating leader"
+          ),
+          criterionId: getRequiredId(
+            criterionIdsByKey,
+            evaluation.criterionKey,
+            "evaluation criterion"
+          ),
+          score: evaluation.score,
+          comment: evaluation.comment,
+        },
+      });
+    }
 
-    await prisma.colisNonIdentifie.createMany({
-      data: SEED_COLIS_NON_IDENTIFIES.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        descriptionColis: record.descriptionColis,
-        motifNonIdentification: record.motifNonIdentification,
-        actionMenee: record.actionMenee,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "colis non identifie reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
-
-    await prisma.colisTransfere.createMany({
-      data: SEED_COLIS_TRANSFERES.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        destination: record.destination,
-        numeroBordereau: record.numeroBordereau,
-        nombreColis: record.nombreColis,
-        chauffeur: record.chauffeur,
-        statut: record.statut,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "colis transfere reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
-
-    await prisma.convoyeurAbsent.createMany({
-      data: SEED_CONVOYEURS_ABSENTS.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        nom: record.nom,
-        numero: record.numero,
-        vehicule: record.vehicule,
-        agenceProvenance: record.agenceProvenance,
-        createdAt: toDateTime(record.createdAt),
-        userId: record.userKey
-          ? getRequiredId(userIdsByKey, record.userKey, "absent convoyeur")
-          : null,
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "convoyeur absent reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
-
-    await prisma.bordereauNonConforme.createMany({
-      data: SEED_BORDEREAUX_NON_CONFORMES.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        numeroBordereau: record.numeroBordereau,
-        motifNonConformite: record.motifNonConformite,
-        actionMenee: record.actionMenee,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "bordereau reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
-
-    await prisma.vehiculeEmbarque.createMany({
-      data: SEED_VEHICULES_EMBARQUES.map(record => ({
-        reportDate: toDateOnly(record.reportDate),
-        immatriculation: record.immatriculation,
-        destination: record.destination,
-        heure: toDateTime(record.heure),
-        retourReceptionColis: record.retourReceptionColis,
-        presenceConvoyeurs: record.presenceConvoyeurs,
-        createdAt: toDateTime(record.createdAt),
-        reportedById: getRequiredId(
-          userIdsByKey,
-          record.reportedByKey,
-          "vehicule embarque reporter"
-        ),
-        generalReportId: getGeneralReportId(
-          record.reportDate,
-          userGroupKeyByKey.get(record.reportedByKey) ?? null
-        ),
-      })),
-    });
-
-    await prisma.signatureLog.createMany({
-      data: SEED_SIGNATURE_LOGS.map(record => ({
-        slipNumber: record.slipNumber,
-        busArrivalTime: record.busArrivalTime
-          ? toDateTime(record.busArrivalTime)
-          : null,
-        groupId: getRequiredId(
-          groupIdsByKey,
-          record.groupKey,
-          "signature group"
-        ),
-        signedAt: toDateTime(record.signedAt),
-        userId: getRequiredId(userIdsByKey, record.userKey, "signature user"),
-      })),
-    });
-
-    await prisma.personnelEvaluation.createMany({
-      data: SEED_PERSONNEL_EVALUATIONS.map(record => ({
-        evaluationDate: toDateOnly(record.evaluationDate),
-        weightOverride: record.weightOverride,
-        notes: record.notes,
-        createdAt: toDateTime(record.createdAt),
-        userId: getRequiredId(userIdsByKey, record.userKey, "evaluation user"),
-        criteriaId: getRequiredId(
-          criterionIdsByKey,
-          record.criteriaKey,
-          "evaluation criterion"
-        ),
-        recordedById: getRequiredId(
-          userIdsByKey,
-          record.recordedByKey,
-          "evaluation recorder"
-        ),
-      })),
-    });
+    for (const log of SEED_SIGNATURE_LOGS) {
+      await prisma.signatureLog.create({
+        data: {
+          workScheduleId: getRequiredId(
+            workScheduleIdsByKey,
+            log.workScheduleKey,
+            "signature log schedule"
+          ),
+          userId: getRequiredId(
+            userIdsByKey,
+            log.userKey,
+            "signature log user"
+          ),
+          slipNumber: log.slipNumber,
+          signedAt: toDateTime(log.signedAt),
+          busArrivalTime: toDateTime(log.busArrivalTime),
+        },
+      });
+    }
 
     console.log(
-      `[seed] Created ${userDefinitions.length} users, ${SEED_CRITERIA.length} criteria, ${SEED_ATTENDANCE_CRITERION_SETTINGS.length} attendance settings, ${SEED_DAILY_GENERAL_REPORTS.length} daily reports, ${SEED_SIGNATURE_LOGS.length} signatures, and ${SEED_PERSONNEL_EVALUATIONS.length} evaluations.`
+      `[seed] Seeded ${userIdsByKey.size} users, ${agencyIdsByKey.size} agency, ` +
+        `${serviceIdsByKey.size} services, ${workPostIdsByKey.size} work posts, ` +
+        `${workScheduleIdsByKey.size} schedules.`
     );
-    console.log("[seed] Deterministic sample dataset loaded successfully.");
   } finally {
     await prisma.$disconnect();
   }

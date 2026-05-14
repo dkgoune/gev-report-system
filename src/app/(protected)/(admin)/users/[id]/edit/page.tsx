@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { UserEditorForm } from "@/components/user-management/user-editor-form";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -15,35 +15,38 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const { id } = await params;
 
-  const [user, groups] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        fullName: true,
-        username: true,
-        role: true,
-        groupId: true,
-        phone: true,
-        isActive: true,
+  const user = await prisma.user.findFirst({
+    where: {
+      id,
+      memberships: {
+        some: {
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
       },
-    }),
-    prisma.group.findMany({
-      where: { isActive: true },
-      orderBy: [{ service: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        service: true,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      username: true,
+      phone: true,
+      isActive: true,
+      memberships: {
+        where: {
+          agencyId: session.activeAgencyId,
+        },
+        select: {
+          role: true,
+        },
       },
-    }),
-  ]);
+    },
+  });
 
   if (!user) {
     notFound();
@@ -56,13 +59,11 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
       initialState={{
         fullName: user.fullName,
         username: user.username,
-        role: user.role,
-        groupId: user.groupId ?? "",
+        role: user.memberships[0]?.role ?? "worker",
         phone: user.phone || "",
         password: "",
         isActive: user.isActive,
       }}
-      groups={groups}
       title={`Mettre a jour ${user.fullName}`}
       description="Modifiez les informations du personnel depuis une page dédiée."
     />

@@ -1,298 +1,381 @@
-import type { Role, Service } from "@/generated/prisma/enums";
-import { type AnalyticsRange, formatRangeLabel } from "@/lib/analytics-range";
+import type { MembershipRole } from "@/generated/prisma/enums";
+import { formatRangeLabel, type AnalyticsRange } from "@/lib/analytics-range";
+import type {
+  EvaluationsAnalyticsLeaderboardEntry,
+  EvaluationsAnalyticsSnapshot,
+} from "@/lib/evaluations-analytics.types";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/session";
 
-type EvaluationTrendPoint = {
+type NormalizedImpact = "POSITIVE" | "NEGATIVE";
+
+type AnalyticsEvaluationRecord = {
+  criterionId: string;
+  criterionImpact: NormalizedImpact;
+  criterionName: string;
   date: string;
-  evaluations: number;
-  netScore: number;
-};
-
-type EvaluationWorkerStat = {
-  averageScore: number;
-  evaluationCount: number;
-  fullName: string;
-  groupId: string | null;
-  groupName: string;
-  role: Role;
-  totalScore: number;
-  userId: string;
-};
-
-type EvaluationGroupStat = {
-  averageScore: number;
-  evaluationCount: number;
-  evaluatedWorkers: number;
-  groupId: string | null;
-  groupName: string;
-  service: Service | null;
-  totalScore: number;
-};
-
-type EvaluationCriterionStat = {
-  criteriaId: string;
-  evaluationCount: number;
-  impact: "POSITIVE" | "NEGATIVE";
-  name: string;
-  scoreContribution: number;
-};
-
-type EvaluatorActivityStat = {
-  distinctWorkers: number;
-  evaluationCount: number;
-  fullName: string;
-  role: Role;
-  totalScore: number;
-  userId: string;
-};
-
-export type EvaluationsAnalyticsSnapshot = {
-  criteriaStats: EvaluationCriterionStat[];
-  evaluatorActivity: EvaluatorActivityStat[];
-  groupStats: EvaluationGroupStat[];
-  leaderboards: {
-    bottomWorkers: EvaluationWorkerStat[];
-    topWorkers: EvaluationWorkerStat[];
+  evaluator: {
+    fullName: string;
+    role: MembershipRole;
+    userId: string;
   };
-  range: {
-    description: string;
-    from: string;
-    preset: string;
-    to: string;
+  score: number;
+  serviceName: string;
+  signedScore: number;
+  worker: {
+    fullName: string;
+    groupName: string;
+    role: MembershipRole;
+    userId: string;
   };
-  summary: {
-    activeGroups: number;
-    activeWorkers: number;
-    averageScorePerWorker: number;
-    negativeCount: number;
-    negativeScore: number;
-    netScore: number;
-    positiveCount: number;
-    positiveScore: number;
-    totalEvaluations: number;
-  };
-  trend: EvaluationTrendPoint[];
-  workerStats: EvaluationWorkerStat[];
 };
 
-function toDateOnly(date: Date) {
+function membershipRoleFromRaw(
+  value: string | undefined,
+  fallback: MembershipRole = "worker"
+): MembershipRole {
+  if (
+    value === "admin" ||
+    value === "scheduler" ||
+    value === "reporter" ||
+    value === "worker"
+  ) {
+    return value;
+  }
+
+  return fallback;
+}
+
+function normalizeImpact(value: string, score: number): NormalizedImpact {
+  const normalized = value.trim().toUpperCase();
+
+  if (normalized === "NEGATIVE" || normalized === "LOW") {
+    return "NEGATIVE";
+  }
+
+  if (normalized === "POSITIVE" || normalized === "HIGH") {
+    return "POSITIVE";
+  }
+
+  return score < 0 ? "NEGATIVE" : "POSITIVE";
+}
+
+function toSignedScore(score: number, impact: NormalizedImpact): number {
+  if (score < 0) {
+    return score;
+  }
+
+  return impact === "NEGATIVE" ? -score : score;
+}
+
+function safeAverage(total: number, count: number): number {
+  if (count <= 0) {
+    return 0;
+  }
+
+  return total / count;
+}
+
+function toDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function enumerateDays(range: AnalyticsRange) {
-  const days: string[] = [];
-  const cursor = new Date(range.fromDate);
-
-  while (cursor <= range.toDate) {
-    days.push(toDateOnly(cursor));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return days;
-}
-
-function addToMap(map: Map<string, number>, key: string, value: number) {
-  map.set(key, (map.get(key) ?? 0) + value);
-}
-
-function resolveSignedScore(weight: number, impact: "POSITIVE" | "NEGATIVE") {
-  return impact === "POSITIVE" ? weight : -weight;
-}
-
 export async function getEvaluationsAnalyticsSnapshot(
-  _session: SessionPayload,
+  session: SessionPayload,
   range: AnalyticsRange
 ): Promise<EvaluationsAnalyticsSnapshot> {
-  const rows = await prisma.personnelEvaluation.findMany({
+  const evaluations = await prisma.personnelEvaluation.findMany({
     where: {
-      evaluationDate: {
-        gte: range.fromDate,
-        lte: range.toDate,
+      workSchedule: {
+        agencyId: session.activeAgencyId,
+        workDate: {
+          gte: range.fromDate,
+          lte: range.toDate,
+        },
       },
     },
-    orderBy: [{ evaluationDate: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
-      evaluationDate: true,
-      weightOverride: true,
-      user: {
+      score: true,
+      criterionId: true,
+      evaluatedUserId: true,
+      evaluatingLeaderId: true,
+      criterion: {
+        select: {
+          name: true,
+          impact: true,
+        },
+      },
+      evaluatedUser: {
         select: {
           id: true,
           fullName: true,
-          role: true,
-          groupId: true,
-          group: {
+          memberships: {
+            where: {
+              agencyId: session.activeAgencyId,
+              isActive: true,
+            },
             select: {
-              id: true,
+              role: true,
+            },
+            take: 1,
+          },
+        },
+      },
+      evaluatingLeader: {
+        select: {
+          id: true,
+          fullName: true,
+          memberships: {
+            where: {
+              agencyId: session.activeAgencyId,
+              isActive: true,
+            },
+            select: {
+              role: true,
+            },
+            take: 1,
+          },
+        },
+      },
+      workSchedule: {
+        select: {
+          id: true,
+          workDate: true,
+          service: {
+            select: {
               name: true,
-              service: true,
+            },
+          },
+          assignments: {
+            select: {
+              userId: true,
+              post: {
+                select: {
+                  name: true,
+                },
+              },
             },
           },
         },
       },
-      criteria: {
-        select: {
-          id: true,
-          name: true,
-          impact: true,
-          defaultWeight: true,
-        },
-      },
-      recordedBy: {
-        select: {
-          id: true,
-          fullName: true,
-          role: true,
-        },
+    },
+    orderBy: {
+      workSchedule: {
+        workDate: "asc",
       },
     },
   });
 
-  const trendCounts = new Map<string, number>();
-  const trendScores = new Map<string, number>();
-  const workerMap = new Map<string, EvaluationWorkerStat>();
+  const records: AnalyticsEvaluationRecord[] = evaluations.map(evaluation => {
+    const impact = normalizeImpact(
+      evaluation.criterion.impact,
+      evaluation.score
+    );
+    const signedScore = toSignedScore(evaluation.score, impact);
+    const assignments = evaluation.workSchedule.assignments;
+
+    const workerAssignment = assignments.find(
+      assignment => assignment.userId === evaluation.evaluatedUserId
+    );
+
+    const serviceName = evaluation.workSchedule.service.name;
+    const fallbackGroupName = serviceName || "Sans groupe";
+
+    return {
+      criterionId: evaluation.criterionId,
+      criterionImpact: impact,
+      criterionName: evaluation.criterion.name,
+      date: toDateOnly(evaluation.workSchedule.workDate),
+      score: evaluation.score,
+      signedScore,
+      serviceName,
+      worker: {
+        userId: evaluation.evaluatedUser.id,
+        fullName: evaluation.evaluatedUser.fullName,
+        role: membershipRoleFromRaw(
+          evaluation.evaluatedUser.memberships[0]?.role,
+          "worker"
+        ),
+        groupName: workerAssignment?.post.name || fallbackGroupName,
+      },
+      evaluator: {
+        userId: evaluation.evaluatingLeader.id,
+        fullName: evaluation.evaluatingLeader.fullName,
+        role: membershipRoleFromRaw(
+          evaluation.evaluatingLeader.memberships[0]?.role,
+          "reporter"
+        ),
+      },
+    };
+  });
+
+  const trendMap = new Map<string, { evaluations: number; netScore: number }>();
+  const workerMap = new Map<
+    string,
+    {
+      evaluationCount: number;
+      fullName: string;
+      groupName: string;
+      role: MembershipRole;
+      totalScore: number;
+      userId: string;
+    }
+  >();
   const groupMap = new Map<
     string,
-    EvaluationGroupStat & { workerIds: Set<string> }
+    {
+      evaluatedWorkers: Set<string>;
+      evaluationCount: number;
+      groupName: string;
+      service: string | null;
+      totalScore: number;
+    }
   >();
-  const criteriaMap = new Map<string, EvaluationCriterionStat>();
+  const criteriaMap = new Map<
+    string,
+    {
+      criteriaId: string;
+      evaluationCount: number;
+      impact: NormalizedImpact;
+      name: string;
+      scoreContribution: number;
+    }
+  >();
   const evaluatorMap = new Map<
     string,
-    EvaluatorActivityStat & { workerIds: Set<string> }
+    {
+      distinctWorkers: Set<string>;
+      evaluationCount: number;
+      fullName: string;
+      role: MembershipRole;
+      totalScore: number;
+      userId: string;
+    }
   >();
 
   let positiveCount = 0;
   let negativeCount = 0;
-  let positiveScore = 0;
-  let negativeScore = 0;
+  let netScore = 0;
 
-  for (const row of rows) {
-    const weight = Number(
-      (row.weightOverride ?? row.criteria.defaultWeight).toString()
-    );
-    const signedScore = resolveSignedScore(weight, row.criteria.impact);
-    const dayKey = toDateOnly(row.evaluationDate);
-    const workerGroupName = row.user.group?.name ?? "Sans groupe";
-    const workerGroupService = row.user.group?.service ?? null;
-    const workerGroupId = row.user.group?.id ?? row.user.groupId ?? null;
-    const groupKey = workerGroupId ?? "__ungrouped__";
+  for (const record of records) {
+    const trend = trendMap.get(record.date) ?? { evaluations: 0, netScore: 0 };
+    trend.evaluations += 1;
+    trend.netScore += record.signedScore;
+    trendMap.set(record.date, trend);
 
-    addToMap(trendCounts, dayKey, 1);
-    addToMap(trendScores, dayKey, signedScore);
+    const worker = workerMap.get(record.worker.userId) ?? {
+      userId: record.worker.userId,
+      fullName: record.worker.fullName,
+      role: record.worker.role,
+      groupName: record.worker.groupName,
+      evaluationCount: 0,
+      totalScore: 0,
+    };
+    worker.evaluationCount += 1;
+    worker.totalScore += record.signedScore;
+    workerMap.set(record.worker.userId, worker);
 
-    if (row.criteria.impact === "POSITIVE") {
+    const groupKey = record.worker.groupName;
+    const group = groupMap.get(groupKey) ?? {
+      groupName: record.worker.groupName,
+      service: record.serviceName || null,
+      evaluationCount: 0,
+      totalScore: 0,
+      evaluatedWorkers: new Set<string>(),
+    };
+    group.evaluationCount += 1;
+    group.totalScore += record.signedScore;
+    group.evaluatedWorkers.add(record.worker.userId);
+    groupMap.set(groupKey, group);
+
+    const criteria = criteriaMap.get(record.criterionId) ?? {
+      criteriaId: record.criterionId,
+      name: record.criterionName,
+      impact: record.criterionImpact,
+      evaluationCount: 0,
+      scoreContribution: 0,
+    };
+    criteria.evaluationCount += 1;
+    criteria.scoreContribution += record.signedScore;
+    criteriaMap.set(record.criterionId, criteria);
+
+    const evaluator = evaluatorMap.get(record.evaluator.userId) ?? {
+      userId: record.evaluator.userId,
+      fullName: record.evaluator.fullName,
+      role: record.evaluator.role,
+      evaluationCount: 0,
+      totalScore: 0,
+      distinctWorkers: new Set<string>(),
+    };
+    evaluator.evaluationCount += 1;
+    evaluator.totalScore += record.signedScore;
+    evaluator.distinctWorkers.add(record.worker.userId);
+    evaluatorMap.set(record.evaluator.userId, evaluator);
+
+    netScore += record.signedScore;
+
+    if (record.signedScore >= 0) {
       positiveCount += 1;
-      positiveScore += weight;
     } else {
       negativeCount += 1;
-      negativeScore += weight;
-    }
-
-    const workerEntry = workerMap.get(row.user.id);
-    workerMap.set(row.user.id, {
-      userId: row.user.id,
-      fullName: row.user.fullName,
-      role: row.user.role,
-      groupId: workerGroupId,
-      groupName: workerGroupName,
-      evaluationCount: (workerEntry?.evaluationCount ?? 0) + 1,
-      totalScore: (workerEntry?.totalScore ?? 0) + signedScore,
-      averageScore: 0,
-    });
-
-    const groupEntry = groupMap.get(groupKey);
-    if (!groupEntry) {
-      groupMap.set(groupKey, {
-        groupId: workerGroupId,
-        groupName: workerGroupName,
-        service: workerGroupService,
-        evaluationCount: 1,
-        evaluatedWorkers: 0,
-        totalScore: signedScore,
-        averageScore: 0,
-        workerIds: new Set([row.user.id]),
-      });
-    } else {
-      groupEntry.evaluationCount += 1;
-      groupEntry.totalScore += signedScore;
-      groupEntry.workerIds.add(row.user.id);
-    }
-
-    const criteriaEntry = criteriaMap.get(row.criteria.id);
-    criteriaMap.set(row.criteria.id, {
-      criteriaId: row.criteria.id,
-      name: row.criteria.name,
-      impact: row.criteria.impact,
-      evaluationCount: (criteriaEntry?.evaluationCount ?? 0) + 1,
-      scoreContribution: (criteriaEntry?.scoreContribution ?? 0) + signedScore,
-    });
-
-    const evaluatorEntry = evaluatorMap.get(row.recordedBy.id);
-    if (!evaluatorEntry) {
-      evaluatorMap.set(row.recordedBy.id, {
-        userId: row.recordedBy.id,
-        fullName: row.recordedBy.fullName,
-        role: row.recordedBy.role,
-        evaluationCount: 1,
-        distinctWorkers: 0,
-        totalScore: signedScore,
-        workerIds: new Set([row.user.id]),
-      });
-    } else {
-      evaluatorEntry.evaluationCount += 1;
-      evaluatorEntry.totalScore += signedScore;
-      evaluatorEntry.workerIds.add(row.user.id);
     }
   }
 
-  const workerStats = [...workerMap.values()]
-    .map(worker => ({
-      ...worker,
-      averageScore:
-        worker.evaluationCount > 0
-          ? worker.totalScore / worker.evaluationCount
-          : 0,
-    }))
-    .sort((left, right) => right.totalScore - left.totalScore);
+  const trend = Array.from(trendMap.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, value]) => ({
+      date,
+      evaluations: value.evaluations,
+      netScore: value.netScore,
+    }));
 
-  const groupStats = [...groupMap.values()]
+  const workerStats: EvaluationsAnalyticsLeaderboardEntry[] = Array.from(
+    workerMap.values()
+  )
+    .map(worker => ({
+      userId: worker.userId,
+      fullName: worker.fullName,
+      role: worker.role,
+      groupName: worker.groupName,
+      evaluationCount: worker.evaluationCount,
+      totalScore: worker.totalScore,
+      averageScore: safeAverage(worker.totalScore, worker.evaluationCount),
+    }))
+    .sort((left, right) => {
+      if (right.totalScore !== left.totalScore) {
+        return right.totalScore - left.totalScore;
+      }
+
+      return right.evaluationCount - left.evaluationCount;
+    });
+
+  const groupStats = Array.from(groupMap.values())
     .map(group => ({
-      groupId: group.groupId,
+      groupId: null,
       groupName: group.groupName,
       service: group.service,
       evaluationCount: group.evaluationCount,
-      evaluatedWorkers: group.workerIds.size,
+      evaluatedWorkers: group.evaluatedWorkers.size,
       totalScore: group.totalScore,
-      averageScore:
-        group.workerIds.size > 0 ? group.totalScore / group.workerIds.size : 0,
+      averageScore: safeAverage(group.totalScore, group.evaluationCount),
     }))
     .sort((left, right) => right.evaluationCount - left.evaluationCount);
 
-  const criteriaStats = [...criteriaMap.values()].sort(
+  const criteriaStats = Array.from(criteriaMap.values()).sort(
     (left, right) => right.evaluationCount - left.evaluationCount
   );
 
-  const evaluatorActivity = [...evaluatorMap.values()]
-    .map(evaluator => ({
-      userId: evaluator.userId,
-      fullName: evaluator.fullName,
-      role: evaluator.role,
-      evaluationCount: evaluator.evaluationCount,
-      distinctWorkers: evaluator.workerIds.size,
-      totalScore: evaluator.totalScore,
+  const evaluatorActivity = Array.from(evaluatorMap.values())
+    .map(item => ({
+      userId: item.userId,
+      fullName: item.fullName,
+      role: item.role,
+      evaluationCount: item.evaluationCount,
+      distinctWorkers: item.distinctWorkers.size,
+      totalScore: item.totalScore,
     }))
     .sort((left, right) => right.evaluationCount - left.evaluationCount);
-
-  const netScore = workerStats.reduce(
-    (sum, worker) => sum + worker.totalScore,
-    0
-  );
-  const trend = enumerateDays(range).map(date => ({
-    date,
-    evaluations: trendCounts.get(date) ?? 0,
-    netScore: trendScores.get(date) ?? 0,
-  }));
 
   return {
     range: {
@@ -302,27 +385,22 @@ export async function getEvaluationsAnalyticsSnapshot(
       description: formatRangeLabel(range),
     },
     summary: {
-      totalEvaluations: rows.length,
+      totalEvaluations: records.length,
+      netScore,
+      activeWorkers: workerMap.size,
+      activeGroups: groupMap.size,
       positiveCount,
       negativeCount,
-      positiveScore,
-      negativeScore,
-      netScore,
-      activeWorkers: workerStats.length,
-      activeGroups: groupStats.length,
-      averageScorePerWorker:
-        workerStats.length > 0 ? netScore / workerStats.length : 0,
+      averageScorePerWorker: safeAverage(netScore, workerMap.size),
     },
     trend,
     workerStats,
+    leaderboards: {
+      topWorkers: workerStats.slice(0, 5),
+      bottomWorkers: [...workerStats].reverse().slice(0, 5),
+    },
     groupStats,
     criteriaStats,
     evaluatorActivity,
-    leaderboards: {
-      topWorkers: workerStats.slice(0, 5),
-      bottomWorkers: [...workerStats]
-        .sort((left, right) => left.totalScore - right.totalScore)
-        .slice(0, 5),
-    },
   };
 }

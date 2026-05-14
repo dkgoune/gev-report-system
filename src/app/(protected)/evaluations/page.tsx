@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { EvaluationsList } from "@/components/evaluation-management/evaluations-list";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -13,6 +13,7 @@ type EvaluationsPageProps = {
     pageSize?: string;
     q?: string;
     to?: string;
+    workScheduleId?: string;
   }>;
 };
 
@@ -53,55 +54,70 @@ export default async function EvaluationsPage({
     redirect("/auth/login");
   }
 
-  if (!canAccessAdminWorkspace(session.role)) {
+  if (!canAccessAgencyAdminWorkspace(session)) {
     redirect("/");
   }
 
   const query = await searchParams;
   const search = (query.q || "").trim();
   const criteriaId = (query.criteriaId || "").trim();
+  const workScheduleId = (query.workScheduleId || "").trim();
   const startDate = normalizeDateInput(query.from);
   const endDate = normalizeDateInput(query.to);
   const pageSize = normalizePageSize(query.pageSize);
 
-  const where: Prisma.PersonnelEvaluationWhereInput = {};
+  const workDateFilter: Prisma.DateTimeFilter = {
+    ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
+    ...(endDate ? { lte: new Date(`${endDate}T00:00:00.000Z`) } : {}),
+  };
+
+  const where: Prisma.PersonnelEvaluationWhereInput = {
+    workSchedule: {
+      agencyId: session.activeAgencyId,
+      ...(startDate || endDate ? { workDate: workDateFilter } : {}),
+    },
+  };
 
   if (search) {
     where.OR = [
-      { user: { fullName: { contains: search, mode: "insensitive" } } },
-      { criteria: { name: { contains: search, mode: "insensitive" } } },
-      { recordedBy: { fullName: { contains: search, mode: "insensitive" } } },
-      { recordedBy: { username: { contains: search, mode: "insensitive" } } },
-      { notes: { contains: search, mode: "insensitive" } },
+      {
+        evaluatedUser: { fullName: { contains: search, mode: "insensitive" } },
+      },
+      { criterion: { name: { contains: search, mode: "insensitive" } } },
+      {
+        evaluatingLeader: {
+          fullName: { contains: search, mode: "insensitive" },
+        },
+      },
+      {
+        evaluatingLeader: {
+          username: { contains: search, mode: "insensitive" },
+        },
+      },
+      { comment: { contains: search, mode: "insensitive" } },
     ];
   }
 
   if (criteriaId) {
-    where.criteriaId = criteriaId;
+    where.criterionId = criteriaId;
   }
 
-  if (startDate || endDate) {
-    where.evaluationDate = {};
-
-    if (startDate) {
-      where.evaluationDate.gte = new Date(`${startDate}T00:00:00.000Z`);
-    }
-
-    if (endDate) {
-      where.evaluationDate.lte = new Date(`${endDate}T00:00:00.000Z`);
-    }
+  if (workScheduleId) {
+    where.workScheduleId = workScheduleId;
   }
 
   const [totalItems, criteriaOptions] = await Promise.all([
     prisma.personnelEvaluation.count({ where }),
     prisma.criterion.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        agencyId: session.activeAgencyId,
+      },
       orderBy: [{ impact: "asc" }, { name: "asc" }],
       select: {
         id: true,
         name: true,
         impact: true,
-        defaultWeight: true,
       },
     }),
   ]);
@@ -111,37 +127,46 @@ export default async function EvaluationsPage({
 
   const evaluations = await prisma.personnelEvaluation.findMany({
     where,
-    orderBy: [{ evaluationDate: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
     select: {
       id: true,
-      evaluationDate: true,
-      weightOverride: true,
-      notes: true,
+      score: true,
+      comment: true,
       createdAt: true,
-      user: {
+      updatedAt: true,
+      evaluatedUser: {
         select: {
           id: true,
           fullName: true,
-          role: true,
           isActive: true,
         },
       },
-      criteria: {
+      criterion: {
         select: {
           id: true,
           name: true,
           impact: true,
-          defaultWeight: true,
           isActive: true,
         },
       },
-      recordedBy: {
+      evaluatingLeader: {
         select: {
           id: true,
           fullName: true,
           username: true,
+        },
+      },
+      workSchedule: {
+        select: {
+          id: true,
+          workDate: true,
+          service: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
@@ -149,22 +174,20 @@ export default async function EvaluationsPage({
 
   return (
     <EvaluationsList
-      criteriaOptions={criteriaOptions.map(criterion => ({
-        ...criterion,
-        defaultWeight: criterion.defaultWeight.toString(),
-      }))}
+      criteriaOptions={criteriaOptions}
       evaluations={evaluations.map(evaluation => ({
         id: evaluation.id,
-        evaluationDate: evaluation.evaluationDate.toISOString(),
-        weightOverride: evaluation.weightOverride?.toString() ?? null,
-        notes: evaluation.notes,
+        score: evaluation.score,
+        comment: evaluation.comment,
         createdAt: evaluation.createdAt.toISOString(),
-        user: evaluation.user,
-        criteria: {
-          ...evaluation.criteria,
-          defaultWeight: evaluation.criteria.defaultWeight.toString(),
+        updatedAt: evaluation.updatedAt.toISOString(),
+        evaluatedUser: evaluation.evaluatedUser,
+        criterion: evaluation.criterion,
+        evaluatingLeader: evaluation.evaluatingLeader,
+        workSchedule: {
+          ...evaluation.workSchedule,
+          workDate: evaluation.workSchedule.workDate.toISOString(),
         },
-        recordedBy: evaluation.recordedBy,
       }))}
       filters={{
         criteriaId,
@@ -173,6 +196,7 @@ export default async function EvaluationsPage({
         pageSize,
         search,
         startDate,
+        workScheduleId,
       }}
       totalItems={totalItems}
       totalPages={totalPages}

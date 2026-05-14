@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
-import type { Role } from "@/generated/prisma/enums";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import type { MembershipRole } from "@/generated/prisma/enums";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
-const ALLOWED_ROLES: Role[] = [
+const ALLOWED_ROLES: MembershipRole[] = [
   "admin",
-  "leader",
-  "subleader",
-  "agent",
-  "convoyer",
+  "scheduler",
+  "reporter",
+  "worker",
 ];
 
-function isAllowedRole(role: string): role is Role {
-  return ALLOWED_ROLES.includes(role as Role);
+function isAllowedRole(role: string): role is MembershipRole {
+  return ALLOWED_ROLES.includes(role as MembershipRole);
 }
 
 type Params = { params: Promise<{ id: string }> };
@@ -22,7 +21,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -33,7 +32,6 @@ export async function PATCH(request: Request, { params }: Params) {
       fullName: string;
       username: string;
       role: string;
-      groupId: string | null;
       phone: string | null;
       password: string;
       isActive: boolean;
@@ -42,8 +40,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const payload: {
       fullName?: string;
       username?: string;
-      role?: Role;
-      groupId?: string | null;
+      role?: MembershipRole;
       phone?: string | null;
       password?: string;
       isActive?: boolean;
@@ -83,10 +80,6 @@ export async function PATCH(request: Request, { params }: Params) {
       payload.isActive = body.isActive;
     }
 
-    if (body.groupId !== undefined) {
-      payload.groupId = body.groupId?.trim() || null;
-    }
-
     if (body.phone !== undefined) {
       payload.phone = body.phone ? body.phone.trim() : null;
     }
@@ -110,65 +103,96 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const currentUser = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, groupId: true },
+      select: {
+        id: true,
+        memberships: {
+          where: {
+            agencyId: session.activeAgencyId,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            role: true,
+          },
+        },
+      },
     });
 
-    if (!currentUser) {
+    if (!currentUser || currentUser.memberships.length === 0) {
       return NextResponse.json(
         { error: "Personnel introuvable." },
         { status: 404 }
       );
     }
 
-    const nextRole = payload.role ?? currentUser.role;
-    const nextGroupId =
-      payload.groupId !== undefined ? payload.groupId : currentUser.groupId;
+    const membership = currentUser.memberships[0];
 
-    if (nextRole !== "admin" && !nextGroupId) {
-      return NextResponse.json(
-        { error: "Un groupe est obligatoire pour ce rôle." },
-        { status: 400 }
-      );
-    }
+    const userData: {
+      fullName?: string;
+      username?: string;
+      phone?: string | null;
+      password?: string;
+      isActive?: boolean;
+    } = {
+      fullName: payload.fullName,
+      username: payload.username,
+      phone: payload.phone,
+      password: payload.password,
+      isActive: payload.isActive,
+    };
 
-    if (nextGroupId) {
-      const group = await prisma.group.findFirst({
-        where: { id: nextGroupId, isActive: true },
-        select: { id: true },
-      });
-
-      if (!group) {
-        return NextResponse.json(
-          { error: "Groupe invalide." },
-          { status: 400 }
-        );
-      }
-    }
-
-    const user = await prisma.user.update({
-      where: { id },
-      data: payload,
-      select: {
-        id: true,
-        fullName: true,
-        username: true,
-        role: true,
-        phone: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        group: {
-          select: {
-            id: true,
-            name: true,
-            service: true,
-            isActive: true,
-          },
+    const [updatedUser, updatedMembership] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id },
+        data: userData,
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          phone: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
         },
+      }),
+      payload.role
+        ? prisma.userAgencyMembership.update({
+            where: {
+              id: membership.id,
+            },
+            data: {
+              role: payload.role,
+            },
+            select: {
+              role: true,
+              isActive: true,
+            },
+          })
+        : prisma.userAgencyMembership.findUniqueOrThrow({
+            where: {
+              id: membership.id,
+            },
+            select: {
+              role: true,
+              isActive: true,
+            },
+          }),
+    ]);
+
+    return NextResponse.json({
+      ok: true,
+      user: {
+        id: updatedUser.id,
+        fullName: updatedUser.fullName,
+        username: updatedUser.username,
+        role: updatedMembership.role,
+        membershipActive: updatedMembership.isActive,
+        phone: updatedUser.phone,
+        isActive: updatedUser.isActive,
+        createdAt: updatedUser.createdAt.toISOString(),
+        updatedAt: updatedUser.updatedAt.toISOString(),
       },
     });
-
-    return NextResponse.json({ ok: true, user });
   } catch (error) {
     if (
       typeof error === "object" &&
@@ -204,7 +228,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -218,8 +242,73 @@ export async function DELETE(_request: Request, { params }: Params) {
   }
 
   try {
-    await prisma.user.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
+    const currentUser = await prisma.user.findFirst({
+      where: {
+        id,
+        memberships: {
+          some: {
+            agencyId: session.activeAgencyId,
+            isActive: true,
+          },
+        },
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Personnel introuvable." },
+        { status: 404 }
+      );
+    }
+
+    if (!currentUser.isActive) {
+      return NextResponse.json(
+        { error: "Ce personnel est déjà inactif." },
+        { status: 400 }
+      );
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+        phone: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        memberships: {
+          where: {
+            agencyId: session.activeAgencyId,
+          },
+          select: {
+            role: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        username: user.username,
+        role: user.memberships[0]?.role ?? "worker",
+        membershipActive: user.memberships[0]?.isActive ?? false,
+        phone: user.phone,
+        isActive: user.isActive,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
+      },
+    });
   } catch (error) {
     if (
       typeof error === "object" &&
@@ -235,10 +324,9 @@ export async function DELETE(_request: Request, { params }: Params) {
 
     return NextResponse.json(
       {
-        error:
-          "Suppression impossible. Ce personnel est peut-être déjà lié à des rapports ou évaluations.",
+        error: "Impossible de désactiver ce personnel.",
       },
-      { status: 409 }
+      { status: 500 }
     );
   }
 }

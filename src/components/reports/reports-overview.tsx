@@ -9,21 +9,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ReportListFilters, ReportRecord } from "@/lib/report-records";
-import { serviceLabel } from "@/lib/services";
 import { AutoFilterForm } from "../ui/auto-filter-form";
 
-type GroupOption = {
+type ServiceOption = {
   id: string;
   name: string;
-  service: "envoi" | "piste" | "retrait";
+};
+
+export type ReportListFilters = {
+  endDate: string;
+  isRead: string;
+  page: number;
+  pageSize: number;
+  search: string;
+  serviceId: string;
+  sortDirection: "asc" | "desc";
+  sortField: "createdAt" | "isRead" | "reportDate" | "reportedBy";
+  startDate: string;
+};
+
+export type ReportRecord = {
+  id: string;
+  reportDate: string;
+  isRead: boolean;
+  createdAt: string;
+  serviceId: string | null;
+  serviceName: string | null;
+  reportedBy: {
+    fullName: string;
+    username: string;
+    role: "admin" | "scheduler" | "reporter" | "worker";
+  };
+  problemesRencontres: string | null;
+  observationGeneral: string | null;
+  ambianceGenerale: string | null;
 };
 
 type ReportsOverviewProps = {
   canViewList: boolean;
   filters?: ReportListFilters;
-  groups?: GroupOption[];
-  isAdmin?: boolean;
+  services?: ServiceOption[];
   reports?: ReportRecord[];
   totalItems?: number;
   totalPages?: number;
@@ -34,8 +59,7 @@ const pageSizes = [10, 20, 50] as const;
 export function ReportsOverview({
   canViewList,
   filters,
-  groups = [],
-  isAdmin = false,
+  services = [],
   reports = [],
   totalItems = 0,
   totalPages = 1,
@@ -54,7 +78,7 @@ export function ReportsOverview({
               </h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-600">
                 Vous pouvez créer le rapport du jour, mais l'historique détaillé
-                des rapports est réservé aux administrateurs et aux leaders.
+                des rapports est réservé aux profils responsables.
               </p>
             </div>
 
@@ -68,8 +92,8 @@ export function ReportsOverview({
           <div className="border border-slate-200 bg-white/90 p-4 text-sm shadow-sm">
             <p className="font-semibold text-slate-900">Accès à l'historique</p>
             <p className="mt-2 text-slate-600">
-              Les sous-leaders conservent l'accès à la saisie, mais ne voient
-              pas la liste complète des rapports enregistrés.
+              Les travailleurs peuvent créer les rapports autorisés, mais ne
+              voient pas la liste complète de l'historique.
             </p>
           </div>
         </section>
@@ -99,7 +123,7 @@ export function ReportsOverview({
       </div>
 
       <div className="border border-slate-200 bg-slate-50 p-4">
-        <AutoFilterForm className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
+        <AutoFilterForm className="grid gap-4 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-9 items-end">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
@@ -112,46 +136,18 @@ export function ReportsOverview({
 
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Service</span>
-            {isAdmin ? (
-              <select
-                name="service"
-                defaultValue={filters.service}
-                className="w-full  border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">Tous les services</option>
-                <option value="envoi">Envoi</option>
-                <option value="piste">Piste</option>
-                <option value="retrait">Retrait</option>
-              </select>
-            ) : (
-              <div className="flex h-9.5 items-center border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                {filters.service
-                  ? serviceLabel(filters.service)
-                  : "Mon service"}
-              </div>
-            )}
-          </label>
-
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-700">Groupe</span>
-            {isAdmin ? (
-              <select
-                name="groupId"
-                defaultValue={filters.groupId}
-                className="w-full  border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">Tous les groupes</option>
-                {groups.map(group => (
-                  <option key={group.id} value={group.id}>
-                    {group.name} ({serviceLabel(group.service)})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="flex h-9.5 items-center  border border-slate-300 bg-white px-3 text-sm text-slate-700">
-                Mon groupe
-              </div>
-            )}
+            <select
+              name="serviceId"
+              defaultValue={filters.serviceId}
+              className="w-full  border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Tous les services</option>
+              {services.map(service => (
+                <option key={service.id} value={service.id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="space-y-2 text-sm">
@@ -228,7 +224,7 @@ export function ReportsOverview({
             </select>
           </label>
 
-          <div className="flex flex-wrap gap-2 lg:col-span-6">
+          <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href="/reports">Réinitialiser</Link>
             </Button>
@@ -253,9 +249,6 @@ export function ReportsOverview({
                 Service
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Groupe
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 Saisi par
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
@@ -271,7 +264,7 @@ export function ReportsOverview({
             {reports.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={6}
                   className="px-4 py-8 text-center text-sm text-slate-600"
                 >
                   Aucun rapport disponible.
@@ -285,12 +278,7 @@ export function ReportsOverview({
                   {formatDate(report.reportDate)}
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  {report.serviceContext
-                    ? serviceLabel(report.serviceContext)
-                    : "Non précisé"}
-                </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  {report.group?.name ?? "Aucun groupe"}
+                  {report.serviceName ?? "Non précisé"}
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                   <div>
@@ -398,12 +386,8 @@ function buildPageHref(filters: ReportListFilters, page: number) {
     params.set("q", filters.search);
   }
 
-  if (filters.service) {
-    params.set("service", filters.service);
-  }
-
-  if (filters.groupId) {
-    params.set("groupId", filters.groupId);
+  if (filters.serviceId) {
+    params.set("serviceId", filters.serviceId);
   }
 
   if (filters.isRead) {

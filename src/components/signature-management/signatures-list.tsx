@@ -9,23 +9,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { SignatureAgentOption, SignatureLogItem } from "./types";
+import type {
+  SignatureAgentOption,
+  SignatureLogItem,
+  SignatureScheduleOption,
+} from "./types";
 import { AutoFilterForm } from "../ui/auto-filter-form";
 
 type SignaturesListProps = {
-  groups: Array<{
-    id: string;
-    name: string;
-  }>;
+  schedules: SignatureScheduleOption[];
   signers: SignatureAgentOption[];
   filters: {
     endDate: string;
-    groupId: string;
     page: number;
     pageSize: number;
     search: string;
     startDate: string;
     userId: string;
+    workScheduleId: string;
   };
   signatures: SignatureLogItem[];
   summary: {
@@ -39,7 +40,7 @@ type SignaturesListProps = {
 };
 
 export function SignaturesList({
-  groups,
+  schedules,
   signers,
   filters,
   signatures,
@@ -80,7 +81,7 @@ export function SignaturesList({
       </div>
 
       <div className="border border-slate-200 bg-slate-50 p-4">
-        <AutoFilterForm className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.65fr)]">
+        <AutoFilterForm className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 items-end">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
@@ -107,18 +108,23 @@ export function SignaturesList({
             </select>
           </label>
 
-          {groups.length > 0 ? (
+          {schedules.length > 0 ? (
             <label className="space-y-2 text-sm">
-              <span className="font-medium text-slate-700">Groupe</span>
+              <span className="font-medium text-slate-700">Planning</span>
               <select
-                name="groupId"
-                defaultValue={filters.groupId}
+                name="workScheduleId"
+                defaultValue={filters.workScheduleId}
                 className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
               >
-                <option value="">Tous les groupes</option>
-                {groups.map(group => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
+                <option value="">Tous les plannings</option>
+                {schedules.map(schedule => (
+                  <option key={schedule.id} value={schedule.id}>
+                    {new Date(schedule.workDate).toLocaleDateString("fr-FR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })}{" "}
+                    - {schedule.serviceName}
                   </option>
                 ))}
               </select>
@@ -160,7 +166,7 @@ export function SignaturesList({
             </select>
           </label>
 
-          <div className="flex flex-wrap gap-2 lg:col-span-6">
+          <div className="flex flex-wrap gap-2 ">
             <Button asChild variant="outline">
               <Link href="/signatures">Réinitialiser</Link>
             </Button>
@@ -168,16 +174,19 @@ export function SignaturesList({
         </AutoFilterForm>
       </div>
 
-      {totalItems === 0 ? (
-        <div className="border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Aucune signature ne correspond aux filtres actuels.
-        </div>
-      ) : null}
+      <div className="border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        {totalItems === 0
+          ? "Aucune signature ne correspond aux filtres actuels."
+          : `Affichage de ${startRow} à ${endRow} sur ${totalItems} signatures.`}
+      </div>
 
       <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700">
             <TableRow>
+              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
+                Planning
+              </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 Date et heure
               </TableHead>
@@ -202,7 +211,7 @@ export function SignaturesList({
             {signatures.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-8 text-center text-sm text-slate-600"
                 >
                   Aucune signature trouvée.
@@ -212,6 +221,16 @@ export function SignaturesList({
 
             {signatures.map(signature => (
               <TableRow key={signature.id} className="align-top">
+                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {formatDate(signature.workSchedule.workDate)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {signature.workSchedule.serviceName}
+                    </p>
+                  </div>
+                </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                   {signature.signedAt
                     ? formatDateTime(signature.signedAt)
@@ -317,6 +336,20 @@ function formatDateTime(value: string) {
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 function buildPageHref(filters: SignaturesListProps["filters"], page: number) {
   const params = new URLSearchParams();
 
@@ -324,8 +357,8 @@ function buildPageHref(filters: SignaturesListProps["filters"], page: number) {
     params.set("q", filters.search);
   }
 
-  if (filters.groupId) {
-    params.set("groupId", filters.groupId);
+  if (filters.workScheduleId) {
+    params.set("workScheduleId", filters.workScheduleId);
   }
 
   if (filters.userId) {

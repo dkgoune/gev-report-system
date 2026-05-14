@@ -1,42 +1,50 @@
 import type { Prisma } from "@/generated/prisma/client";
-import type { Role } from "@/generated/prisma/enums";
+import type { MembershipRole } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/session";
 
 type ScopedUserOption = {
   id: string;
   fullName: string;
-  role: Role;
   username: string;
 };
 
+/**
+ * Build a WHERE clause for users within the same agency
+ */
 export function buildScopedUserWhere(
   session: SessionPayload,
-  allowedRoles?: Role[]
+  allowedRoles?: MembershipRole[]
 ): Prisma.UserWhereInput {
   const where: Prisma.UserWhereInput = {
     isActive: true,
+    memberships: {
+      some: {
+        agencyId: session.activeAgencyId,
+        isActive: true,
+      },
+    },
   };
 
   if (allowedRoles?.length) {
-    where.role = { in: allowedRoles };
-  }
-
-  if (session.role !== "admin") {
-    if (!session.groupId) {
-      where.id = "__no_matching_group__";
-      return where;
-    }
-
-    where.groupId = session.groupId;
+    where.memberships = {
+      some: {
+        agencyId: session.activeAgencyId,
+        isActive: true,
+        role: { in: allowedRoles },
+      },
+    };
   }
 
   return where;
 }
 
+/**
+ * List users within the active agency, optionally filtered by role
+ */
 export async function listScopedUsers(
   session: SessionPayload,
-  allowedRoles?: Role[]
+  allowedRoles?: MembershipRole[]
 ) {
   return prisma.user.findMany({
     where: buildScopedUserWhere(session, allowedRoles),
@@ -44,7 +52,6 @@ export async function listScopedUsers(
     select: {
       id: true,
       fullName: true,
-      role: true,
       username: true,
     },
   }) satisfies Promise<ScopedUserOption[]>;

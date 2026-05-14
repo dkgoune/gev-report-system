@@ -10,7 +10,7 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await getServerSession();
 
-  if (session && canAccessPlatform(session.role)) {
+  if (session && canAccessPlatform(session)) {
     redirect("/");
   }
 

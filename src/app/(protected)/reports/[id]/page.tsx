@@ -1,14 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import {
-  getGeneralSubReportFields,
-  getGeneralSubReportSections,
-} from "@/lib/general-report-subreports";
-import { getReportById } from "@/lib/report-records";
-import { serviceLabel } from "@/lib/services";
+import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { ReportMarkReadButton } from "@/components/reports/report-mark-read-button";
+import { isAgencyAdmin } from "@/lib/authz";
 
 type ReportDetailPageProps = {
   params: Promise<{
@@ -26,15 +22,43 @@ export default async function ReportDetailPage({
   }
 
   const { id } = await params;
-  const payload = await getReportById("general", id, session);
+  const report = await prisma.generalReport.findFirst({
+    where: {
+      id,
+      workSchedule: {
+        agencyId: session.activeAgencyId,
+      },
+    },
+    include: {
+      reportedBy: {
+        select: {
+          fullName: true,
+          username: true,
+        },
+      },
+      readBy: {
+        select: {
+          fullName: true,
+        },
+      },
+      workSchedule: {
+        include: {
+          service: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      incidentEntries: {
+        orderBy: [{ displayOrder: "asc" }],
+      },
+    },
+  });
 
-  if (!payload) {
+  if (!report) {
     notFound();
   }
-
-  const { report, reportType } = payload;
-  const service = report.serviceContext;
-  const sections = service ? getGeneralSubReportSections(service) : [];
 
   return (
     <div className="space-y-6">
@@ -44,10 +68,10 @@ export default async function ReportDetailPage({
             Rapport général
           </p>
           <h1 className="text-3xl font-bold text-slate-900">
-            Lecture du rapport du {formatDate(report.reportDate)}
+            Lecture du rapport du {formatDate(report.workSchedule.workDate)}
           </h1>
           <p className="max-w-3xl text-sm leading-6 text-slate-600">
-            {reportType.detailDescription}
+            Détails du rapport général avec incidents liés pour cette journée.
           </p>
         </div>
 
@@ -55,7 +79,7 @@ export default async function ReportDetailPage({
           <Button asChild variant="outline">
             <Link href="/reports">Retour à la liste</Link>
           </Button>
-          {session.role == "admin" && (
+          {isAgencyAdmin(session) && (
             <ReportMarkReadButton
               disabled={report.isRead}
               reportId={report.id}
@@ -67,13 +91,9 @@ export default async function ReportDetailPage({
       <section className="grid gap-4 border border-slate-200 bg-slate-50 p-5 lg:grid-cols-4">
         <InfoCard
           label="Date du rapport"
-          value={formatDate(report.reportDate)}
+          value={formatDate(report.workSchedule.workDate.toISOString())}
         />
-        <InfoCard
-          label="Service"
-          value={service ? serviceLabel(service) : "Non précisé"}
-        />
-        <InfoCard label="Groupe" value={report.group?.name ?? "Aucun groupe"} />
+        <InfoCard label="Service" value={report.workSchedule.service.name} />
         <InfoCard
           label="État de lecture"
           value={report.isRead ? "Lu" : "Non lu"}
@@ -107,76 +127,81 @@ export default async function ReportDetailPage({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          {reportType.fields.map(field => (
-            <article
-              key={field.key}
-              className="space-y-2 border border-slate-200 bg-slate-50 p-4"
-            >
-              <h3 className="text-sm font-semibold text-slate-900">
-                {field.label}
-              </h3>
-              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                {formatReportValue(report[field.key])}
-              </p>
-            </article>
-          ))}
+          <article className="space-y-2 border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Ambiance générale
+            </h3>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {formatReportValue(report.ambianceGenerale)}
+            </p>
+          </article>
+          <article className="space-y-2 border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Problèmes rencontrés
+            </h3>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {formatReportValue(report.problemesRencontres)}
+            </p>
+          </article>
+          <article className="space-y-2 border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Etat général du service
+            </h3>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {formatReportValue(report.etatGeneralService)}
+            </p>
+          </article>
+          <article className="space-y-2 border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Passation de service
+            </h3>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {formatReportValue(report.passationService)}
+            </p>
+          </article>
+          <article className="space-y-2 border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
+            <h3 className="text-sm font-semibold text-slate-900">
+              Observation générale
+            </h3>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {formatReportValue(report.observationGeneral)}
+            </p>
+          </article>
         </div>
       </section>
 
-      {service
-        ? sections.map(section => {
-            const entries = report.subReports?.[section.slug] ?? [];
+      <section className="space-y-4 border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold text-slate-900">
+            Incidents liés
+          </h2>
+          <p className="text-sm text-slate-600">
+            Incidents saisis selon les modèles configurés.
+          </p>
+        </div>
 
-            return (
-              <section
-                key={section.slug}
-                className="space-y-4 border border-slate-200 bg-white p-5 shadow-sm"
+        {report.incidentEntries.length === 0 ? (
+          <div className="border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+            Aucun incident lié pour ce rapport.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {report.incidentEntries.map(entry => (
+              <article
+                key={entry.id}
+                className="space-y-2 border border-slate-200 bg-slate-50 p-4"
               >
-                <div className="space-y-1">
-                  <h2 className="text-xl font-semibold text-slate-900">
-                    {section.title}
-                  </h2>
-                  <p className="text-sm text-slate-600">
-                    {section.description}
-                  </p>
-                </div>
-
-                {entries.length === 0 ? (
-                  <div className="border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-                    {section.emptyLabel}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {entries.map((entry, index) => (
-                      <article
-                        key={`${section.slug}-${index}`}
-                        className="space-y-3 border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <p className="text-sm font-semibold text-slate-900">
-                          Entrée {index + 1}
-                        </p>
-                        <div className="grid gap-3 lg:grid-cols-2">
-                          {getGeneralSubReportFields(section.slug, service).map(
-                            field => (
-                              <div key={field.key} className="space-y-1">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                  {field.label}
-                                </p>
-                                <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                                  {formatReportValue(entry[field.key])}
-                                </p>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-            );
-          })
-        : null}
+                <p className="text-sm font-semibold text-slate-900">
+                  {entry.templateNameSnapshot}
+                </p>
+                <pre className="overflow-x-auto text-xs text-slate-700">
+                  {JSON.stringify(entry.valuesJson, null, 2)}
+                </pre>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -204,11 +229,11 @@ function formatReportValue(value: unknown) {
   return "Non renseigné";
 }
 
-function formatDate(value: string) {
+function formatDate(value: string | Date): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return value?.toString();
   }
 
   return new Intl.DateTimeFormat("fr-FR", {
@@ -217,7 +242,7 @@ function formatDate(value: string) {
   }).format(date);
 }
 
-function formatDateTime(value: string | null) {
+function formatDateTime(value: string | Date | null): string {
   if (!value) {
     return "Non renseigné";
   }
@@ -225,7 +250,7 @@ function formatDateTime(value: string | null) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return value?.toString();
   }
 
   return new Intl.DateTimeFormat("fr-FR", {

@@ -1,20 +1,35 @@
 import { NextResponse } from "next/server";
-import type { Impact } from "@/generated/prisma/enums";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
-const ALLOWED_IMPACTS: Impact[] = ["POSITIVE", "NEGATIVE"];
+const ALLOWED_IMPACTS: string[] = ["low", "high"];
 
-function isAllowedImpact(value: string): value is Impact {
-  return ALLOWED_IMPACTS.includes(value as Impact);
+function isAllowedImpact(value: string): boolean {
+  return ALLOWED_IMPACTS.includes(value);
+}
+
+function normalizeImpact(value: string): string {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "positive") {
+    return "high";
+  }
+
+  if (normalized === "negative") {
+    return "low";
+  }
+
+  return normalized;
 }
 
 function parseMaxDaily(value: string | undefined) {
   const trimmed = value?.trim();
 
   if (!trimmed) {
-    return { value: null } as const;
+    return {
+      error: "Le maximum quotidien est obligatoire.",
+    } as const;
   }
 
   const parsed = Number(trimmed);
@@ -28,20 +43,43 @@ function parseMaxDaily(value: string | undefined) {
   return { value: parsed } as const;
 }
 
+function parseWeight(value: string | undefined) {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return {
+      error: "Le poids est obligatoire.",
+    } as const;
+  }
+
+  const parsed = Number(trimmed);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return {
+      error: "Le poids doit être un nombre strictement positif.",
+    } as const;
+  }
+
+  return { value: trimmed } as const;
+}
+
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
   const criteria = await prisma.criterion.findMany({
+    where: {
+      agencyId: session.activeAgencyId,
+    },
     orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
       name: true,
       impact: true,
-      defaultWeight: true,
+      weight: true,
       maxDaily: true,
       isActive: true,
       createdAt: true,
@@ -52,7 +90,7 @@ export async function GET() {
   return NextResponse.json({
     criteria: criteria.map(criterion => ({
       ...criterion,
-      defaultWeight: criterion.defaultWeight.toString(),
+      weight: criterion.weight.toString(),
       createdAt: criterion.createdAt.toISOString(),
     })),
   });
@@ -61,7 +99,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -69,20 +107,20 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Partial<{
       name: string;
       impact: string;
-      defaultWeight: string;
+      weight: string;
       maxDaily: string;
       isActive: boolean;
     }>;
 
     const name = body.name?.trim();
-    const impact = body.impact?.trim();
-    const defaultWeight = body.defaultWeight?.trim();
+    const impact = body.impact ? normalizeImpact(body.impact) : "";
+    const weight = parseWeight(body.weight);
     const maxDaily = parseMaxDaily(body.maxDaily);
     const isActive = body.isActive ?? true;
 
-    if (!name || !impact || !defaultWeight) {
+    if (!name || !impact) {
       return NextResponse.json(
-        { error: "Le nom, l'impact et le poids par défaut sont obligatoires." },
+        { error: "Le nom et l'impact sont obligatoires." },
         { status: 400 }
       );
     }
@@ -91,13 +129,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Impact invalide." }, { status: 400 });
     }
 
-    const parsedWeight = Number(defaultWeight);
-
-    if (!Number.isFinite(parsedWeight)) {
-      return NextResponse.json(
-        { error: "Le poids par défaut doit être un nombre valide." },
-        { status: 400 }
-      );
+    if ("error" in weight) {
+      return NextResponse.json({ error: weight.error }, { status: 400 });
     }
 
     if ("error" in maxDaily) {
@@ -106,9 +139,10 @@ export async function POST(request: Request) {
 
     const criterion = await prisma.criterion.create({
       data: {
+        agencyId: session.activeAgencyId,
         name,
         impact,
-        defaultWeight: defaultWeight,
+        weight: weight.value,
         maxDaily: maxDaily.value,
         isActive,
         createdById: session.userId,
@@ -117,7 +151,7 @@ export async function POST(request: Request) {
         id: true,
         name: true,
         impact: true,
-        defaultWeight: true,
+        weight: true,
         maxDaily: true,
         isActive: true,
         createdAt: true,
@@ -130,7 +164,7 @@ export async function POST(request: Request) {
         ok: true,
         criterion: {
           ...criterion,
-          defaultWeight: criterion.defaultWeight.toString(),
+          weight: criterion.weight.toString(),
           createdAt: criterion.createdAt.toISOString(),
         },
       },

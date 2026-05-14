@@ -1,20 +1,35 @@
 import { NextResponse } from "next/server";
-import type { Impact } from "@/generated/prisma/enums";
-import { canAccessAdminWorkspace } from "@/lib/authz";
+import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
-const ALLOWED_IMPACTS: Impact[] = ["POSITIVE", "NEGATIVE"];
+const ALLOWED_IMPACTS: string[] = ["low", "high"];
 
-function isAllowedImpact(value: string): value is Impact {
-  return ALLOWED_IMPACTS.includes(value as Impact);
+function isAllowedImpact(value: string): boolean {
+  return ALLOWED_IMPACTS.includes(value);
+}
+
+function normalizeImpact(value: string): string {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "positive") {
+    return "high";
+  }
+
+  if (normalized === "negative") {
+    return "low";
+  }
+
+  return normalized;
 }
 
 function parseMaxDaily(value: string) {
   const trimmed = value.trim();
 
   if (!trimmed) {
-    return { value: null } as const;
+    return {
+      error: "Le maximum quotidien est obligatoire.",
+    } as const;
   }
 
   const parsed = Number(trimmed);
@@ -28,12 +43,32 @@ function parseMaxDaily(value: string) {
   return { value: parsed } as const;
 }
 
+function parseWeight(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return {
+      error: "Le poids est obligatoire.",
+    } as const;
+  }
+
+  const parsed = Number(trimmed);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return {
+      error: "Le poids doit être un nombre strictement positif.",
+    } as const;
+  }
+
+  return { value: trimmed } as const;
+}
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAdminWorkspace(session.role)) {
+  if (!session || !canAccessAgencyAdminWorkspace(session)) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -43,16 +78,33 @@ export async function PATCH(request: Request, { params }: Params) {
     const body = (await request.json()) as Partial<{
       name: string;
       impact: string;
-      defaultWeight: string;
+      weight: string;
       maxDaily: string;
       isActive: boolean;
     }>;
 
+    const existing = await prisma.criterion.findFirst({
+      where: {
+        id,
+        agencyId: session.activeAgencyId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Critère introuvable." },
+        { status: 404 }
+      );
+    }
+
     const payload: {
       name?: string;
-      impact?: Impact;
-      defaultWeight?: string;
-      maxDaily?: number | null;
+      impact?: string;
+      weight?: string;
+      maxDaily?: number;
       isActive?: boolean;
     } = {};
 
@@ -68,7 +120,7 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     if (typeof body.impact === "string") {
-      const impact = body.impact.trim();
+      const impact = normalizeImpact(body.impact);
       if (!isAllowedImpact(impact)) {
         return NextResponse.json(
           { error: "Impact invalide." },
@@ -76,20 +128,6 @@ export async function PATCH(request: Request, { params }: Params) {
         );
       }
       payload.impact = impact;
-    }
-
-    if (typeof body.defaultWeight === "string") {
-      const defaultWeight = body.defaultWeight.trim();
-      const parsedWeight = Number(defaultWeight);
-
-      if (!defaultWeight || !Number.isFinite(parsedWeight)) {
-        return NextResponse.json(
-          { error: "Le poids par défaut doit être un nombre valide." },
-          { status: 400 }
-        );
-      }
-
-      payload.defaultWeight = defaultWeight;
     }
 
     if (typeof body.maxDaily === "string") {
@@ -100,6 +138,18 @@ export async function PATCH(request: Request, { params }: Params) {
       }
 
       payload.maxDaily = maxDaily.value;
+    } else if (body.maxDaily === null) {
+      body.maxDaily = undefined;
+    }
+
+    if (typeof body.weight === "string") {
+      const weight = parseWeight(body.weight);
+
+      if ("error" in weight) {
+        return NextResponse.json({ error: weight.error }, { status: 400 });
+      }
+
+      payload.weight = weight.value;
     }
 
     if (typeof body.isActive === "boolean") {
@@ -120,7 +170,7 @@ export async function PATCH(request: Request, { params }: Params) {
         id: true,
         name: true,
         impact: true,
-        defaultWeight: true,
+        weight: true,
         maxDaily: true,
         isActive: true,
         createdAt: true,
@@ -132,7 +182,7 @@ export async function PATCH(request: Request, { params }: Params) {
       ok: true,
       criterion: {
         ...criterion,
-        defaultWeight: criterion.defaultWeight.toString(),
+        weight: criterion.weight.toString(),
         createdAt: criterion.createdAt.toISOString(),
       },
     });

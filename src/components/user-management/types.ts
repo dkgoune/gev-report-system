@@ -1,45 +1,27 @@
-export type Role = "admin" | "leader" | "subleader" | "agent" | "convoyer";
+import type { MembershipRole } from "@/generated/prisma/enums";
+
+export type Role = MembershipRole;
 
 export type Service = "envoi" | "piste" | "retrait";
-
-export type GroupOption = {
-  id: string;
-  name: string;
-  service: Service;
-};
-
-export type GroupItem = GroupOption & {
-  createdAt: string;
-  updatedAt: string;
-  memberCount: number;
-  isActive: boolean;
-};
 
 export type UserItem = {
   id: string;
   fullName: string;
   username: string;
   role: Role;
+  membershipActive: boolean;
   phone: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  group: GroupOption | null;
 };
 
 export type UserFormState = {
   fullName: string;
   username: string;
   role: Role;
-  groupId: string;
   phone: string;
   password: string;
-  isActive: boolean;
-};
-
-export type GroupFormState = {
-  name: string;
-  service: Service;
   isActive: boolean;
 };
 
