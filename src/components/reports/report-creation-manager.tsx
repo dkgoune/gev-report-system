@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ReportPublishButton } from "./report-publish-button";
 import type { ReportFieldDefinition } from "./report-general-fields";
 import {
   ReportBoundIncidentSection,
@@ -63,7 +65,9 @@ type ReportCreationManagerProps = {
   generalFields: ReportFieldDefinition[];
   schedules: WorkScheduleOption[];
   initialWorkScheduleId: string;
+  initialReportIdBySchedule: Record<string, string>;
   personnelBySchedule: Record<string, PersonnelOption[]>;
+  initialIncidentBoundings: BindingPayloadItem[];
 };
 
 function createInitialFieldValues(fields: ReportFieldDefinition[]) {
@@ -77,11 +81,51 @@ function buildPresentIds(personnel: PersonnelOption[]) {
   return personnel.map(user => user.id);
 }
 
+function buildIncidentEntriesByBinding(
+  incidentEntries: Array<{
+    templateId: string;
+    valuesJson: Record<string, unknown>;
+  }>,
+  boundSectionsByService: Partial<Record<string, BoundIncidentSection[]>>
+) {
+  const templateIdToBindingId: Record<string, string> = {};
+
+  for (const sections of Object.values(boundSectionsByService)) {
+    if (!sections) {
+      continue;
+    }
+
+    for (const section of sections) {
+      templateIdToBindingId[section.templateId] = section.bindingId;
+    }
+  }
+
+  const entriesByBinding: Partial<
+    Record<string, Record<string, string | boolean>[]>
+  > = {};
+
+  for (const incident of incidentEntries) {
+    const bindingId = templateIdToBindingId[incident.templateId];
+    if (!bindingId) {
+      continue;
+    }
+
+    entriesByBinding[bindingId] = [
+      ...(entriesByBinding[bindingId] ?? []),
+      incident.valuesJson as Record<string, string | boolean>,
+    ];
+  }
+
+  return entriesByBinding;
+}
+
 export function ReportCreationManager({
   generalFields,
   schedules,
   initialWorkScheduleId,
+  initialReportIdBySchedule,
   personnelBySchedule,
+  initialIncidentBoundings = [],
 }: ReportCreationManagerProps) {
   const router = useRouter();
   const initialPersonnel = personnelBySchedule[initialWorkScheduleId] ?? [];
@@ -101,6 +145,9 @@ export function ReportCreationManager({
     Partial<Record<string, Record<string, string | boolean>[]>>
   >({});
   const [submitting, setSubmitting] = useState(false);
+  const [savedReportId, setSavedReportId] = useState<string | null>(
+    initialReportIdBySchedule[initialWorkScheduleId] ?? null
+  );
 
   const selectedSchedule = useMemo(
     () => schedules.find(schedule => schedule.id === workScheduleId) ?? null,
@@ -124,37 +171,17 @@ export function ReportCreationManager({
 
   function handleWorkScheduleChange(nextWorkScheduleId: string) {
     setWorkScheduleId(nextWorkScheduleId);
+    setSavedReportId(initialReportIdBySchedule[nextWorkScheduleId] ?? null);
+    setFieldValues(defaultFieldValues);
     setPresentIds(
       buildPresentIds(personnelBySchedule[nextWorkScheduleId] ?? [])
     );
+    setBoundIncidentEntries({});
   }
 
   useEffect(() => {
-    let cancelled = false;
-
     async function loadBoundSections() {
-      const response = await fetch("/api/incidents/bindings", {
-        method: "GET",
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        bindings?: BindingPayloadItem[];
-        error?: string;
-      } | null;
-
-      if (!response.ok) {
-        if (!cancelled) {
-          toast.error(
-            payload?.error || "Impossible de charger les incidents lies."
-          );
-        }
-        return;
-      }
-
-      if (cancelled) {
-        return;
-      }
-
-      const grouped = (payload?.bindings ?? []).reduce<
+      const grouped = initialIncidentBoundings.reduce<
         Partial<Record<string, BoundIncidentSection[]>>
       >((acc, binding) => {
         if (!binding.isActive) {
@@ -196,14 +223,75 @@ export function ReportCreationManager({
     }
 
     void loadBoundSections();
+  }, [initialIncidentBoundings]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDraft() {
+      if (!savedReportId) {
+        return;
+      }
+
+      const response = await fetch(`/api/reports/general/${savedReportId}`, {
+        method: "GET",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        report?: {
+          ambianceGenerale: string | null;
+          problemesRencontres: string | null;
+          etatGeneralService: string | null;
+          passationService: string | null;
+          observationGeneral: string | null;
+          presentPersonnel?: Array<{ id: string }>;
+          incidentEntries?: Array<{
+            id: string;
+            templateId: string;
+            templateNameSnapshot: string;
+            valuesJson: Record<string, unknown>;
+          }>;
+        };
+      } | null;
+
+      if (!response.ok || !payload?.report || cancelled) {
+        return;
+      }
+
+      setFieldValues(current => ({
+        ...current,
+        ambianceGenerale: payload.report?.ambianceGenerale ?? "",
+        problemesRencontres: payload.report?.problemesRencontres ?? "",
+        etatGeneralService: payload.report?.etatGeneralService ?? "",
+        passationService: payload.report?.passationService ?? "",
+        observationGeneral: payload.report?.observationGeneral ?? "",
+      }));
+
+      const presentFromReport =
+        payload.report.presentPersonnel?.map(user => user.id) ?? [];
+      if (presentFromReport.length > 0) {
+        setPresentIds(presentFromReport);
+      }
+
+      const incidentEntries = payload.report.incidentEntries ?? [];
+      const entriesByBinding = buildIncidentEntriesByBinding(
+        incidentEntries,
+        boundSectionsByService
+      );
+
+      // Replace entries for a fresh edit session instead of appending repeatedly.
+      setBoundIncidentEntries(entriesByBinding);
+    }
+
+    void loadDraft();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [savedReportId, boundSectionsByService]);
 
   function handleReset() {
     setWorkScheduleId(initialWorkScheduleId);
+    setSavedReportId(initialReportIdBySchedule[initialWorkScheduleId] ?? null);
     setFieldValues(defaultFieldValues);
     setPresentIds(
       buildPresentIds(personnelBySchedule[initialWorkScheduleId] ?? [])
@@ -221,14 +309,6 @@ export function ReportCreationManager({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const confirmed = window.confirm(
-      "Confirmer l'enregistrement de ce rapport ? Après validation, vous ne pourrez plus le modifier."
-    );
-
-    if (!confirmed) {
-      return;
-    }
 
     const activeBoundSections = boundSectionsByService[serviceId] ?? [];
 
@@ -346,6 +426,7 @@ export function ReportCreationManager({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        reportId: savedReportId,
         workScheduleId,
         ...fieldValues,
         presentPersonnelIds: presentIds,
@@ -361,7 +442,7 @@ export function ReportCreationManager({
 
     const payload = (await response.json().catch(() => null)) as {
       error?: string;
-      report?: { id: string };
+      report?: { id: string; status: "draft" | "published" };
     } | null;
 
     if (!response.ok || !payload?.report) {
@@ -370,9 +451,9 @@ export function ReportCreationManager({
       return;
     }
 
-    toast.success("Rapport général enregistré.");
+    setSavedReportId(payload.report.id);
+    toast.success("Brouillon enregistré.");
     setSubmitting(false);
-    router.push("/reports");
     router.refresh();
   }
 
@@ -421,7 +502,7 @@ export function ReportCreationManager({
 
       <section className="flex flex-wrap gap-3 border border-slate-200 bg-slate-900 px-5 py-4 text-white">
         <Button type="submit" size="lg" disabled={submitting}>
-          {submitting ? "Enregistrement..." : "Enregistrer le rapport"}
+          {submitting ? "Enregistrement..." : "Enregistrer le brouillon"}
         </Button>
         <Button
           type="button"
@@ -433,6 +514,24 @@ export function ReportCreationManager({
         >
           Réinitialiser
         </Button>
+        {savedReportId ? (
+          <>
+            <ReportPublishButton
+              reportId={savedReportId}
+              disabled={submitting}
+            />
+            <Button
+              asChild
+              type="button"
+              size="lg"
+              variant="outline"
+              disabled={submitting}
+              className="border-white/20 bg-white/5 text-white hover:bg-white/10"
+            >
+              <Link href={`/reports/${savedReportId}`}>Voir le rapport</Link>
+            </Button>
+          </>
+        ) : null}
       </section>
     </form>
   );

@@ -5,6 +5,89 @@ import { getServerSession } from "@/lib/session";
 import { Prisma } from "@/generated/prisma/browser";
 import { hasPermission } from "@/lib/permissions";
 
+type ReportWriteBody = {
+  reportId?: string;
+  workScheduleId?: string;
+  presentPersonnelIds?: string[];
+  absentPersonnelIds?: string[];
+  ambianceGenerale?: string;
+  problemesRencontres?: string;
+  etatGeneralService?: string;
+  passationService?: string;
+  observationGeneral?: string;
+  incidentEntries?: Record<string, Array<Record<string, unknown>>>;
+};
+
+function normalizeIncidentEntries(
+  incidentEntries: unknown
+): Record<string, Array<Record<string, unknown>>> {
+  if (!incidentEntries || typeof incidentEntries !== "object") {
+    return {};
+  }
+
+  const result: Record<string, Array<Record<string, unknown>>> = {};
+
+  for (const [bindingId, entries] of Object.entries(incidentEntries)) {
+    if (!Array.isArray(entries)) {
+      continue;
+    }
+
+    const normalizedEntries = entries.filter(
+      (entry): entry is Record<string, unknown> =>
+        !!entry && typeof entry === "object" && !Array.isArray(entry)
+    );
+
+    result[bindingId] = normalizedEntries;
+  }
+
+  return result;
+}
+
+function normalizeIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      ids.filter(value => typeof value === "string").map(value => value.trim())
+    )
+  ).filter(Boolean);
+}
+
+function toTrimmedOrNull(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function getErrorStatus(error: unknown, fallback: number) {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  if (error.message.includes("introuvable")) {
+    return 404;
+  }
+
+  if (error.message.includes("Accès refusé")) {
+    return 403;
+  }
+
+  if (error.message.includes("publié")) {
+    return 409;
+  }
+
+  return fallback;
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ reportType: string }> }
@@ -43,7 +126,7 @@ export async function GET(
       ? Number(searchParams.get("pageSize") || "20")
       : 20;
 
-    const where: Record<string, unknown> = {
+    const where: Prisma.GeneralReportWhereInput = {
       workSchedule: {
         agencyId: session.activeAgencyId,
         ...(serviceId ? { serviceId } : {}),
@@ -58,12 +141,10 @@ export async function GET(
       ];
     }
 
-    const totalItems = await prisma.generalReport.count({
-      where: where as never,
-    });
+    const totalItems = await prisma.generalReport.count({ where });
 
     const reports = await prisma.generalReport.findMany({
-      where: where as never,
+      where,
       orderBy: [{ createdAt: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -109,6 +190,8 @@ export async function GET(
         id: report.id,
         reportDate: report.workSchedule.workDate.toISOString(),
         isRead: report.isRead,
+        status: report.status,
+        publishedAt: report.publishedAt?.toISOString() ?? null,
         createdAt: report.createdAt.toISOString(),
         serviceId: report.workSchedule.service.id,
         serviceName: report.workSchedule.service.name,
@@ -135,7 +218,7 @@ export async function POST(
 ) {
   const session = await getServerSession();
 
-  if (!session || !hasPermission(session, "report_create")) {
+  if (!session || !hasPermission(session, "report_create", "report_update")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -148,19 +231,10 @@ export async function POST(
   }
 
   try {
-    const body = (await request.json()) as {
-      workScheduleId?: string;
-      presentPersonnelIds?: string[];
-      absentPersonnelIds?: string[];
-      ambianceGenerale?: string;
-      problemesRencontres?: string;
-      etatGeneralService?: string;
-      passationService?: string;
-      observationGeneral?: string;
-      incidentEntries?: Record<string, Array<Record<string, unknown>>>;
-    };
-
+    const body = (await request.json()) as ReportWriteBody;
+    const reportId = (body.reportId || "").trim();
     const workScheduleId = (body.workScheduleId || "").trim();
+
     if (!workScheduleId) {
       return NextResponse.json(
         { error: "Planning obligatoire." },
@@ -173,7 +247,7 @@ export async function POST(
       .toISOString()
       .slice(0, 10);
 
-    const created = await prisma.$transaction(async tx => {
+    const saved = await prisma.$transaction(async tx => {
       const schedule = await tx.workSchedule.findFirst({
         where: {
           id: workScheduleId,
@@ -183,6 +257,17 @@ export async function POST(
           id: true,
           workDate: true,
           serviceId: true,
+          assignments: {
+            select: {
+              userId: true,
+            },
+          },
+          generalReport: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
         },
       });
 
@@ -195,29 +280,119 @@ export async function POST(
         throw new Error("Le planning sélectionné n'est plus éligible.");
       }
 
-      const report = await tx.generalReport.create({
-        data: {
-          workScheduleId: schedule.id,
-          reportedById: session.userId,
-          personnelPresent: (body.presentPersonnelIds || []).join(","),
-          personnelAbsent: (body.absentPersonnelIds || []).join(","),
-          ambianceGenerale: body.ambianceGenerale?.trim() || null,
-          problemesRencontres: body.problemesRencontres?.trim() || null,
-          etatGeneralService: body.etatGeneralService?.trim() || null,
-          passationService: body.passationService?.trim() || null,
-          observationGeneral: body.observationGeneral?.trim() || null,
+      if (schedule.generalReport?.status === "published") {
+        throw new Error("Ce rapport est déjà publié.");
+      }
+
+      if (
+        reportId &&
+        schedule.generalReport &&
+        schedule.generalReport.id !== reportId
+      ) {
+        throw new Error("Rapport introuvable pour ce planning.");
+      }
+
+      const validScheduleUserIds = new Set(
+        schedule.assignments.map(assignment => assignment.userId)
+      );
+
+      const requestedPresentIds = normalizeIds(body.presentPersonnelIds);
+      const requestedAbsentIds = normalizeIds(body.absentPersonnelIds);
+
+      for (const userId of [...requestedPresentIds, ...requestedAbsentIds]) {
+        if (!validScheduleUserIds.has(userId)) {
+          throw new Error(
+            "Les présences/absences doivent correspondre au personnel du planning."
+          );
+        }
+      }
+
+      const presentIdSet = new Set(requestedPresentIds);
+      const absentIdSet = new Set(requestedAbsentIds);
+
+      for (const userId of presentIdSet) {
+        if (absentIdSet.has(userId)) {
+          throw new Error("Un personnel ne peut pas être présent et absent.");
+        }
+      }
+
+      const presentIds = Array.from(presentIdSet);
+      const absentIds = requestedAbsentIds.length
+        ? Array.from(absentIdSet)
+        : Array.from(validScheduleUserIds).filter(
+            userId => !presentIdSet.has(userId)
+          );
+
+      const report = schedule.generalReport
+        ? await tx.generalReport.update({
+            where: { id: schedule.generalReport.id },
+            data: {
+              ambianceGenerale: toTrimmedOrNull(body.ambianceGenerale),
+              problemesRencontres: toTrimmedOrNull(body.problemesRencontres),
+              etatGeneralService: toTrimmedOrNull(body.etatGeneralService),
+              passationService: toTrimmedOrNull(body.passationService),
+              observationGeneral: toTrimmedOrNull(body.observationGeneral),
+              status: "draft",
+              publishedAt: null,
+            },
+            select: {
+              id: true,
+              workScheduleId: true,
+              status: true,
+            },
+          })
+        : await tx.generalReport.create({
+            data: {
+              workScheduleId: schedule.id,
+              reportedById: session.userId,
+              ambianceGenerale: toTrimmedOrNull(body.ambianceGenerale),
+              problemesRencontres: toTrimmedOrNull(body.problemesRencontres),
+              etatGeneralService: toTrimmedOrNull(body.etatGeneralService),
+              passationService: toTrimmedOrNull(body.passationService),
+              observationGeneral: toTrimmedOrNull(body.observationGeneral),
+              status: "draft",
+            },
+            select: {
+              id: true,
+              workScheduleId: true,
+              status: true,
+            },
+          });
+
+      await tx.generalReportPersonnelAttendance.deleteMany({
+        where: {
+          generalReportId: report.id,
         },
       });
 
-      const incidentPayload = body.incidentEntries || {};
+      const attendanceRows = [
+        ...presentIds.map(userId => ({ userId, status: "present" as const })),
+        ...absentIds.map(userId => ({ userId, status: "absent" as const })),
+      ];
+
+      if (attendanceRows.length > 0) {
+        await tx.generalReportPersonnelAttendance.createMany({
+          data: attendanceRows.map(attendance => ({
+            generalReportId: report.id,
+            userId: attendance.userId,
+            status: attendance.status,
+          })),
+        });
+      }
+
+      await tx.generalReportIncidentEntry.deleteMany({
+        where: {
+          generalReportId: report.id,
+        },
+      });
+
+      const incidentPayload = normalizeIncidentEntries(body.incidentEntries);
       const bindingIds = Object.keys(incidentPayload);
 
       if (bindingIds.length > 0) {
         const bindings = await tx.serviceIncidentBinding.findMany({
           where: {
-            id: {
-              in: bindingIds,
-            },
+            id: { in: bindingIds },
             serviceId: schedule.serviceId,
             service: {
               agencyId: session.activeAgencyId,
@@ -229,34 +404,45 @@ export async function POST(
             },
             templateVersion: {
               select: {
-                id: true,
                 fieldsJson: true,
               },
             },
           },
         });
 
+        if (bindings.length !== bindingIds.length) {
+          throw new Error("Certaines liaisons d'incident sont invalides.");
+        }
+
         let displayOrder = 0;
+        const incidentRows: Prisma.GeneralReportIncidentEntryCreateManyInput[] =
+          [];
+
         for (const binding of bindings) {
           const entries = incidentPayload[binding.id] || [];
+
           for (const entry of entries) {
-            await tx.generalReportIncidentEntry.create({
-              data: {
-                generalReportId: report.id,
-                workScheduleId: schedule.id,
-                templateId: binding.templateId,
-                templateVersionId: binding.templateVersionId,
-                templateNameSnapshot: binding.template.name,
-                templateCodeSnapshot: binding.template.code,
-                valuesJson: entry as unknown as Prisma.JsonObject,
-                schemaSnapshotJson: sanitizeIncidentFields(
-                  binding.templateVersion.fieldsJson
-                ),
-                displayOrder,
-              },
+            incidentRows.push({
+              generalReportId: report.id,
+              workScheduleId: schedule.id,
+              templateId: binding.templateId,
+              templateVersionId: binding.templateVersionId,
+              templateNameSnapshot: binding.template.name,
+              templateCodeSnapshot: binding.template.code,
+              valuesJson: entry as unknown as Prisma.InputJsonValue,
+              schemaSnapshotJson: sanitizeIncidentFields(
+                binding.templateVersion.fieldsJson
+              ) as unknown as Prisma.InputJsonValue,
+              displayOrder,
             });
             displayOrder += 1;
           }
+        }
+
+        if (incidentRows.length > 0) {
+          await tx.generalReportIncidentEntry.createMany({
+            data: incidentRows,
+          });
         }
       }
 
@@ -264,46 +450,16 @@ export async function POST(
     });
 
     return NextResponse.json(
-      { ok: true, report: { id: created.id } },
+      {
+        ok: true,
+        report: { id: saved.id, status: saved.status },
+      },
       { status: 201 }
     );
   } catch (error) {
-    console.log(error, "error lors de la creation du rapport");
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      return NextResponse.json(
-        { error: "Un rapport existe déjà pour cette période ou ces critères." },
-        { status: 409 }
-      );
-    }
-
     return NextResponse.json(
       { error: getErrorMessage(error, "Impossible d'enregistrer le rapport.") },
       { status: getErrorStatus(error, 400) }
     );
   }
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function getErrorStatus(error: unknown, fallback: number) {
-  if (!(error instanceof Error)) {
-    return fallback;
-  }
-
-  if (error.message.includes("introuvable")) {
-    return 404;
-  }
-
-  if (error.message.includes("Accès refusé")) {
-    return 403;
-  }
-
-  return fallback;
 }

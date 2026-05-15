@@ -49,18 +49,12 @@ function serializeBinding(binding: {
 export async function GET() {
   const session = await getServerSession();
 
-  if (
-    !session ||
-    !hasPermission(
-      session,
-      "incident_binding_manage",
-      "incident_template_manage"
-    )
-  ) {
+  if (!session) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
   const [services, templates, bindings] = await Promise.all([
+    // services
     prisma.serviceDefinition.findMany({
       where: { agencyId: session.activeAgencyId },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
@@ -71,6 +65,7 @@ export async function GET() {
         isActive: true,
       },
     }),
+    // templates with versions
     prisma.incidentTemplate.findMany({
       where: { agencyId: session.activeAgencyId },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
@@ -87,6 +82,8 @@ export async function GET() {
         },
       },
     }),
+
+    // bindings
     prisma.serviceIncidentBinding.findMany({
       where: {
         service: {

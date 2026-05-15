@@ -4,6 +4,7 @@ import { GENERAL_REPORT_FIELDS } from "@/components/reports/report-general-field
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { hasPermission } from "@/lib/permissions";
+import { getAgencyIncidentBindings } from "@/lib/incident-management";
 
 type NewReportPageProps = {
   searchParams: Promise<{
@@ -42,7 +43,7 @@ export default async function NewReportPage({
         lte: todayDate,
       },
 
-      generalReport: null,
+      OR: [{ generalReport: null }, { generalReport: { status: "draft" } }],
     },
     orderBy: [{ workDate: "desc" }],
     select: {
@@ -72,12 +73,24 @@ export default async function NewReportPage({
           },
         },
       },
+      generalReport: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
     },
   });
 
   if (schedules.length === 0) {
     redirect("/");
   }
+
+  // Incident bindings are needed to determine which incident fields
+  // should be displayed in the report creation form
+  const initialIncidentBoundings = await getAgencyIncidentBindings(
+    session.activeAgencyId
+  );
 
   const availableSchedules = schedules.map(schedule => ({
     id: schedule.id,
@@ -97,6 +110,12 @@ export default async function NewReportPage({
     ])
   );
 
+  const initialReportIdBySchedule = Object.fromEntries(
+    schedules
+      .map(schedule => [schedule.id, schedule.generalReport?.id ?? ""])
+      .filter(([, reportId]) => reportId)
+  ) as Record<string, string>;
+
   const requestedScheduleId = (query.workScheduleId || "").trim();
   const initialWorkScheduleId = availableSchedules.some(
     schedule => schedule.id === requestedScheduleId
@@ -109,7 +128,9 @@ export default async function NewReportPage({
       generalFields={GENERAL_REPORT_FIELDS}
       schedules={availableSchedules}
       initialWorkScheduleId={initialWorkScheduleId}
+      initialReportIdBySchedule={initialReportIdBySchedule}
       personnelBySchedule={personnelBySchedule}
+      initialIncidentBoundings={initialIncidentBoundings}
     />
   );
 }

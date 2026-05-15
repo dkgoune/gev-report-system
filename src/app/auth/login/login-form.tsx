@@ -61,7 +61,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   }
 
   return (
-    <form className="space-y-4" onSubmit={onSubmit}>
+    <form className="space-y-4" onSubmit={onSubmit} method="POST">
       <div className="space-y-2">
         <label htmlFor="username" className="block text-sm font-medium">
           Nom d&apos;utilisateur

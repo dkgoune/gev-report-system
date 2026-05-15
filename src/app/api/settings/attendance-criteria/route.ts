@@ -13,13 +13,25 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<{
       criterionId: string;
+      appliesTo: string;
     }>;
 
     const criterionId = body.criterionId?.trim();
+    const appliesTo = body.appliesTo?.trim();
 
     if (!criterionId) {
       return NextResponse.json(
         { error: "Le critère est obligatoire." },
+        { status: 400 }
+      );
+    }
+
+    if (!appliesTo || !["present", "absent", "both"].includes(appliesTo)) {
+      return NextResponse.json(
+        {
+          error:
+            "La cible d'application est obligatoire (present, absent ou both).",
+        },
         { status: 400 }
       );
     }
@@ -40,12 +52,14 @@ export async function POST(request: Request) {
       data: {
         agencyId: session.activeAgencyId,
         criterionId,
+        appliesTo: appliesTo as "present" | "absent" | "both",
         isEnabled: true,
         createdById: session.userId,
       },
       select: {
         id: true,
         isEnabled: true,
+        appliesTo: true,
         createdAt: true,
         criterion: {
           select: {
@@ -64,6 +78,7 @@ export async function POST(request: Request) {
         ok: true,
         setting: {
           ...setting,
+          appliesTo: setting.appliesTo,
           createdAt: setting.createdAt.toISOString(),
           criterion: {
             ...setting.criterion,

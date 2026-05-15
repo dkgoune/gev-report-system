@@ -21,6 +21,7 @@ export default async function CreateUserPage() {
       initialState={defaultUserFormState}
       title="Ajouter un personnel"
       description="Créez un nouveau compte puis revenez a la liste des personnels."
+      canEditPermissions={hasPermission(session, "user_manage_permissions")}
     />
   );
 }

@@ -25,6 +25,7 @@ type AttendanceCriterionOption = {
 type AttendanceCriterionSettingItem = {
   id: string;
   isEnabled: boolean;
+  appliesTo: "present" | "absent" | "both";
   createdAt: string;
   criterion: AttendanceCriterionOption;
 };
@@ -45,6 +46,9 @@ export function AttendanceCriteriaSettings({
   const [criteria] = useState(initialCriteria);
   const [settings, setSettings] = useState(initialSettings);
   const [criterionId, setCriterionId] = useState("");
+  const [appliesTo, setAppliesTo] = useState<"present" | "absent" | "both">(
+    "present"
+  );
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -70,7 +74,7 @@ export function AttendanceCriteriaSettings({
     const response = await fetch("/api/settings/attendance-criteria", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ criterionId }),
+      body: JSON.stringify({ criterionId, appliesTo }),
     });
 
     const payload = (await response.json().catch(() => null)) as {
@@ -89,6 +93,7 @@ export function AttendanceCriteriaSettings({
       ...current,
     ]);
     setCriterionId("");
+    setAppliesTo("present");
     setSubmitting(false);
     toast.success("Règle automatique enregistrée.");
   }
@@ -162,7 +167,7 @@ export function AttendanceCriteriaSettings({
 
       <section className="border border-slate-200 bg-slate-50 p-4">
         <form
-          className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_auto] md:items-end"
+          className="grid gap-4 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] md:items-end"
           onSubmit={onSubmit}
         >
           <label className="space-y-2 text-sm">
@@ -177,6 +182,21 @@ export function AttendanceCriteriaSettings({
             />
           </label>
 
+          <label className="space-y-2 text-sm">
+            <span className="font-medium text-slate-700">S'applique à</span>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={appliesTo}
+              onChange={e =>
+                setAppliesTo(e.target.value as "present" | "absent" | "both")
+              }
+            >
+              <option value="present">Présents</option>
+              <option value="absent">Absents</option>
+              <option value="both">Les deux</option>
+            </select>
+          </label>
+
           <Button type="submit" disabled={submitting}>
             {submitting ? "Ajout..." : "Ajouter la règle"}
           </Button>
@@ -189,6 +209,9 @@ export function AttendanceCriteriaSettings({
             <TableRow>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 Critère
+              </TableHead>
+              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
+                S'applique à
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
                 État
@@ -208,7 +231,7 @@ export function AttendanceCriteriaSettings({
             {settings.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="px-4 py-8 text-center text-sm text-slate-600"
                 >
                   Aucune règle automatique configurée.
@@ -220,6 +243,23 @@ export function AttendanceCriteriaSettings({
               <TableRow key={setting.id}>
                 <TableCell className="px-4 py-3 text-slate-900 whitespace-nowrap">
                   {setting.criterion.name}
+                </TableCell>
+                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                      setting.appliesTo === "present"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : setting.appliesTo === "absent"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {setting.appliesTo === "present"
+                      ? "Présents"
+                      : setting.appliesTo === "absent"
+                        ? "Absents"
+                        : "Les deux"}
+                  </span>
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
                   <span

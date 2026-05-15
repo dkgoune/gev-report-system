@@ -129,6 +129,22 @@ enum PermissionWindow {
   total
 }
 
+enum GeneralReportStatus {
+  draft
+  published
+}
+
+enum GeneralReportPersonnelStatus {
+  present
+  absent
+}
+
+enum AttendanceCriterionTarget {
+  present
+  absent
+  both
+}
+
 // ==================== TENANCY & IDENTITY ====================
 
 model Agency {
@@ -176,8 +192,9 @@ model User {
   evaluationsReceived PersonnelEvaluation[] @relation("EvaluatedUser")
   evaluationsGiven    PersonnelEvaluation[] @relation("EvaluatingLeader")
 
-  generalReportsCreated GeneralReport[] @relation("GeneralReportReporter")
-  generalReportsRead    GeneralReport[] @relation("GeneralReportReader")
+  generalReportsCreated GeneralReport[]                    @relation("GeneralReportReporter")
+  generalReportsRead    GeneralReport[]                    @relation("GeneralReportReader")
+  reportAttendances     GeneralReportPersonnelAttendance[]
 
   workScheduleAssignments    WorkScheduleAssignment[]
   signatureLogs              SignatureLog[]
@@ -410,16 +427,16 @@ model WorkScheduleIncidentRequirement {
 // ==================== GENERAL REPORT & INCIDENT ENTRIES ====================
 
 model GeneralReport {
-  id             String    @id @default(cuid())
-  workScheduleId String    @unique
+  id             String              @id @default(cuid())
+  workScheduleId String              @unique
   reportedById   String
   readById       String?
-  isRead         Boolean   @default(false)
+  isRead         Boolean             @default(false)
+  status         GeneralReportStatus @default(draft)
+  publishedAt    DateTime?
   readAt         DateTime?
 
   // General report structured fields
-  personnelPresent    String? @db.Text
-  personnelAbsent     String? @db.Text
   ambianceGenerale    String? @db.Text
   problemesRencontres String? @db.Text
   etatGeneralService  String? @db.Text
@@ -430,14 +447,16 @@ model GeneralReport {
   updatedAt DateTime @updatedAt
 
   // Relations
-  workSchedule    WorkSchedule                 @relation(fields: [workScheduleId], references: [id], onDelete: Cascade)
-  reportedBy      User                         @relation("GeneralReportReporter", fields: [reportedById], references: [id])
-  readBy          User?                        @relation("GeneralReportReader", fields: [readById], references: [id])
+  workSchedule    WorkSchedule                       @relation(fields: [workScheduleId], references: [id], onDelete: Cascade)
+  reportedBy      User                               @relation("GeneralReportReporter", fields: [reportedById], references: [id])
+  readBy          User?                              @relation("GeneralReportReader", fields: [readById], references: [id])
   incidentEntries GeneralReportIncidentEntry[]
+  attendances     GeneralReportPersonnelAttendance[]
 
   @@index([workScheduleId])
   @@index([reportedById])
   @@index([readById])
+  @@index([status])
   @@map("general_reports")
 }
 
@@ -466,6 +485,23 @@ model GeneralReportIncidentEntry {
   @@index([templateId])
   @@index([templateVersionId])
   @@map("general_report_incident_entries")
+}
+
+model GeneralReportPersonnelAttendance {
+  id              String                       @id @default(cuid())
+  generalReportId String
+  userId          String
+  status          GeneralReportPersonnelStatus
+  createdAt       DateTime                     @default(now())
+
+  generalReport GeneralReport @relation(fields: [generalReportId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([generalReportId, userId])
+  @@index([generalReportId])
+  @@index([userId])
+  @@index([status])
+  @@map("general_report_personnel_attendances")
 }
 
 // ==================== EVALUATIONS ====================
@@ -519,12 +555,13 @@ model PersonnelEvaluation {
 }
 
 model AttendanceCriterionSetting {
-  id          String   @id @default(cuid())
+  id          String                    @id @default(cuid())
   agencyId    String
   criterionId String
-  isEnabled   Boolean  @default(true)
+  appliesTo   AttendanceCriterionTarget @default(both)
+  isEnabled   Boolean                   @default(true)
   createdById String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime                  @default(now())
 
   // Relations
   agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)

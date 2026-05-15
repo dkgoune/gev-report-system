@@ -466,9 +466,9 @@ export async function runSeed() {
               )
             : null,
           isRead: report.isRead,
+          status: report.status,
+          publishedAt: toDateTime(report.publishedAt),
           readAt: toDateTime(report.readAt),
-          personnelPresent: report.personnelPresent,
-          personnelAbsent: report.personnelAbsent,
           ambianceGenerale: report.ambianceGenerale,
           problemesRencontres: report.problemesRencontres,
           etatGeneralService: report.etatGeneralService,
@@ -476,6 +476,26 @@ export async function runSeed() {
           observationGeneral: report.observationGeneral,
         },
       });
+
+      for (const userKey of report.presentPersonnelKeys) {
+        await prisma.generalReportPersonnelAttendance.create({
+          data: {
+            generalReportId: createdReport.id,
+            userId: getRequiredId(userIdsByKey, userKey, "present personnel"),
+            status: "present",
+          },
+        });
+      }
+
+      for (const userKey of report.absentPersonnelKeys) {
+        await prisma.generalReportPersonnelAttendance.create({
+          data: {
+            generalReportId: createdReport.id,
+            userId: getRequiredId(userIdsByKey, userKey, "absent personnel"),
+            status: "absent",
+          },
+        });
+      }
 
       for (const entry of report.incidentEntries) {
         const template = templateDefinitionsByKey.get(entry.templateKey);

@@ -67,6 +67,7 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
       }}
       title={`Mettre a jour ${user.fullName}`}
       description="Modifiez les informations du personnel depuis une page dédiée."
+      canEditPermissions={hasPermission(session, "user_manage_permissions")}
     />
   );
 }

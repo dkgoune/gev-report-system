@@ -22,6 +22,8 @@ export function ReportMarkReadButton({
 
     const response = await fetch(`/api/reports/general/${reportId}`, {
       method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "markRead" }),
     });
 
     const payload = (await response.json().catch(() => null)) as {
@@ -46,6 +48,7 @@ export function ReportMarkReadButton({
       type="button"
       disabled={disabled || submitting}
       onClick={handleMarkAsRead}
+      className="print:hidden"
     >
       {submitting ? "Mise à jour..." : "Marquer comme lu"}
     </Button>

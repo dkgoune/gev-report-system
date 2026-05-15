@@ -229,3 +229,29 @@ export async function getIncidentOverviewPageData(agencyId: string) {
     serviceCount,
   };
 }
+
+export async function getAgencyIncidentBindings(agencyId: string) {
+  const bindings = await prisma.serviceIncidentBinding.findMany({
+    where: {
+      service: { agencyId },
+    },
+    orderBy: [{ displayOrder: "asc" }, { createdAt: "desc" }],
+    include: {
+      service: {
+        select: { name: true, code: true },
+      },
+      template: {
+        select: { name: true },
+      },
+      templateVersion: {
+        select: {
+          version: true,
+          status: true,
+          fieldsJson: true,
+        },
+      },
+    },
+  });
+
+  return bindings.map(serializeBinding);
+}

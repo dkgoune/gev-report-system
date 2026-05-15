@@ -55,14 +55,7 @@ function serializeTemplate(template: {
 export async function GET() {
   const session = await getServerSession();
 
-  if (
-    !session ||
-    !hasPermission(
-      session,
-      "incident_binding_manage",
-      "incident_template_manage"
-    )
-  ) {
+  if (!session) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

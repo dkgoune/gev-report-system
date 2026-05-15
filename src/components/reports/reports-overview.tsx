@@ -31,6 +31,8 @@ export type ReportRecord = {
   id: string;
   reportDate: string;
   isRead: boolean;
+  status: "draft" | "published";
+  publishedAt: string | null;
   createdAt: string;
   serviceId: string | null;
   serviceName: string | null;
@@ -250,7 +252,7 @@ export function ReportsOverview({
                 Saisi par
               </TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Lecture
+                Statut
               </TableHead>
               <TableHead className="px-4 py-3 font-medium">Résumé</TableHead>
               <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
@@ -286,15 +288,32 @@ export function ReportsOverview({
                   </div>
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  <span
-                    className={
-                      report.isRead
-                        ? "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                        : "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
-                    }
-                  >
-                    {report.isRead ? "Lu" : "Non lu"}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span
+                      className={
+                        report.status === "published"
+                          ? "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                          : "inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700"
+                      }
+                    >
+                      {report.status === "published" ? "Publié" : "Brouillon"}
+                    </span>
+                    {report.status === "published" ? (
+                      <span
+                        className={
+                          report.isRead
+                            ? "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                            : "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
+                        }
+                      >
+                        {report.isRead ? "Lu" : "Non lu"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+                        En cours
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="px-4 py-3 text-slate-700">
                   <div className="max-w-xl whitespace-normal text-sm text-slate-700">

@@ -101,6 +101,7 @@ export async function PATCH(request: Request, { params }: Params) {
       select: {
         id: true,
         isEnabled: true,
+        appliesTo: true,
         createdAt: true,
         criterion: {
           select: {
@@ -118,6 +119,7 @@ export async function PATCH(request: Request, { params }: Params) {
       ok: true,
       setting: {
         ...updated,
+        appliesTo: updated.appliesTo,
         createdAt: updated.createdAt.toISOString(),
         criterion: {
           ...updated.criterion,

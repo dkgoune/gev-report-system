@@ -48,6 +48,7 @@ export default async function SettingsPage() {
       select: {
         id: true,
         isEnabled: true,
+        appliesTo: true,
         createdAt: true,
         criterion: {
           select: {
@@ -71,6 +72,10 @@ export default async function SettingsPage() {
       }))}
       initialSettings={settings.map(setting => ({
         ...setting,
+        appliesTo: (setting.appliesTo ?? "both") as
+          | "present"
+          | "absent"
+          | "both",
         createdAt: setting.createdAt.toISOString(),
         criterion: {
           ...setting.criterion,

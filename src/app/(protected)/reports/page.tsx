@@ -176,6 +176,8 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       id: report.id,
       reportDate: report.workSchedule.workDate.toISOString(),
       isRead: report.isRead,
+      status: report.status,
+      publishedAt: report.publishedAt?.toISOString() ?? null,
       createdAt: report.createdAt.toISOString(),
       serviceId: report.workSchedule.service.id,
       serviceName: report.workSchedule.service.name,

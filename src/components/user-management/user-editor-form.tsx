@@ -24,7 +24,7 @@ export function UserEditorForm({
   userId,
   title,
   description,
-  canEditPermissions,
+  canEditPermissions = false,
 }: UserEditorFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<UserFormState>(initialState);
@@ -243,7 +243,7 @@ export function UserEditorForm({
               </div>
 
               <div className="flex gap-2">
-                <Button
+                {/* <Button
                   type="button"
                   size="sm"
                   variant="outline"
@@ -268,7 +268,7 @@ export function UserEditorForm({
                   }
                 >
                   Tout retirer
-                </Button>
+                </Button> */}
               </div>
             </div>
 

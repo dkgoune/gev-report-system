@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { hasPermission } from "@/lib/permissions";
+import { getReportData } from "@/lib/reports";
 
 export async function GET(
   _request: Request,
@@ -30,41 +31,7 @@ export async function GET(
     );
   }
 
-  const report = await prisma.generalReport.findFirst({
-    where: {
-      id,
-      workSchedule: {
-        agencyId: session.activeAgencyId,
-      },
-    },
-    include: {
-      reportedBy: {
-        select: {
-          fullName: true,
-          username: true,
-        },
-      },
-      readBy: {
-        select: {
-          fullName: true,
-          username: true,
-        },
-      },
-      workSchedule: {
-        include: {
-          service: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-      incidentEntries: {
-        orderBy: [{ displayOrder: "asc" }],
-      },
-    },
-  });
+  const report = await getReportData(id);
 
   if (!report) {
     return NextResponse.json(
@@ -73,45 +40,16 @@ export async function GET(
     );
   }
 
-  return NextResponse.json({
-    report: {
-      id: report.id,
-      reportDate: report.workSchedule.workDate.toISOString(),
-      isRead: report.isRead,
-      createdAt: report.createdAt.toISOString(),
-      serviceId: report.workSchedule.service.id,
-      serviceName: report.workSchedule.service.name,
-      reportedBy: report.reportedBy,
-      readBy: report.readBy,
-      ambianceGenerale: report.ambianceGenerale,
-      problemesRencontres: report.problemesRencontres,
-      etatGeneralService: report.etatGeneralService,
-      passationService: report.passationService,
-      observationGeneral: report.observationGeneral,
-      incidentEntries: report.incidentEntries.map(entry => ({
-        id: entry.id,
-        templateNameSnapshot: entry.templateNameSnapshot,
-        valuesJson: entry.valuesJson,
-      })),
-    },
-  });
+  return NextResponse.json({ report });
 }
 
 export async function PATCH(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string; reportType: string }> }
 ) {
   const session = await getServerSession();
 
-  if (
-    !session ||
-    !hasPermission(
-      session,
-      "report_create",
-      "report_mark_read",
-      "report_update"
-    )
-  ) {
+  if (!session || !hasPermission(session, "report_mark_read")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -124,6 +62,17 @@ export async function PATCH(
   }
 
   try {
+    const body = (await request.json().catch(() => ({}))) as {
+      action?: string;
+    };
+
+    if (body.action && body.action !== "markRead") {
+      return NextResponse.json(
+        { error: "Action non supportée." },
+        { status: 400 }
+      );
+    }
+
     const report = await prisma.generalReport.findFirst({
       where: {
         id,
@@ -133,6 +82,8 @@ export async function PATCH(
       },
       select: {
         id: true,
+        status: true,
+        isRead: true,
       },
     });
 
@@ -141,6 +92,17 @@ export async function PATCH(
         { error: "Rapport introuvable." },
         { status: 404 }
       );
+    }
+
+    if (report.status !== "published") {
+      return NextResponse.json(
+        { error: "Seuls les rapports publiés peuvent être marqués comme lus." },
+        { status: 409 }
+      );
+    }
+
+    if (report.isRead) {
+      return NextResponse.json({ ok: true, alreadyRead: true });
     }
 
     await prisma.generalReport.update({
