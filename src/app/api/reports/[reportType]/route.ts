@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import {
-  canAccessAgencyAdminWorkspace,
-  canCreateReports,
-  hasLeadershipRole,
-} from "@/lib/authz";
 import { sanitizeIncidentFields } from "@/lib/incident-field-schema";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { Prisma } from "@/generated/prisma/browser";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(
   request: Request,
@@ -15,7 +11,16 @@ export async function GET(
 ) {
   const session = await getServerSession();
 
-  if (!session || !hasLeadershipRole(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "report_read",
+      "report_create",
+      "report_mark_read",
+      "report_update"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -110,7 +115,6 @@ export async function GET(
         reportedBy: {
           fullName: report.reportedBy.fullName,
           username: report.reportedBy.username,
-          role: session.activeMembershipRole,
         },
         problemesRencontres: report.problemesRencontres,
         observationGeneral: report.observationGeneral,
@@ -131,7 +135,7 @@ export async function POST(
 ) {
   const session = await getServerSession();
 
-  if (!session || !canCreateReports(session)) {
+  if (!session || !hasPermission(session, "report_create")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -170,22 +174,10 @@ export async function POST(
       .slice(0, 10);
 
     const created = await prisma.$transaction(async tx => {
-      const isAdmin = canAccessAgencyAdminWorkspace(session);
-
       const schedule = await tx.workSchedule.findFirst({
         where: {
           id: workScheduleId,
           agencyId: session.activeAgencyId,
-          ...(!isAdmin
-            ? {
-                assignments: {
-                  some: {
-                    userId: session.userId,
-                    OR: [{ isLeader: true }, { isSubleader: true }],
-                  },
-                },
-              }
-            : {}),
         },
         select: {
           id: true,

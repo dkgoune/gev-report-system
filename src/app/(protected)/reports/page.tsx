@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { ReportsOverview } from "../../../components/reports/reports-overview";
-import { hasLeadershipRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type ReportsPageProps = {
   searchParams: Promise<{
@@ -55,7 +55,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
     redirect("/auth/login");
   }
 
-  if (!hasLeadershipRole(session)) {
+  if (!hasPermission(session, "report_read")) {
     return <ReportsOverview canViewList={false} />;
   }
 
@@ -182,7 +182,6 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       reportedBy: {
         fullName: report.reportedBy.fullName,
         username: report.reportedBy.username,
-        role: session.activeMembershipRole,
       },
       problemesRencontres: report.problemesRencontres,
       observationGeneral: report.observationGeneral,

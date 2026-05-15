@@ -6,12 +6,17 @@ import {
   getSignatureLogFormOptions,
 } from "@/lib/signature-logs";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 export default async function NewSignaturePage() {
   const session = await getServerSession();
 
   if (!session) {
     redirect("/auth/login");
+  }
+
+  if (!hasPermission(session, "signature_create")) {
+    redirect("/");
   }
 
   const payload = await getSignatureLogFormOptions(session);

@@ -11,13 +11,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
+import { isSuperAdmin } from "@/lib/authz";
 import type { SessionPayload } from "@/lib/session";
+import { UserPermission } from "@/generated/prisma/browser";
+import { hasPermission } from "@/lib/permissions";
 
 type MembershipOption = {
   agencyId: string;
   agencyName: string;
-  role: SessionPayload["activeMembershipRole"];
 };
 
 type AppShellProps = {
@@ -26,35 +27,49 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
-type NavRole = SessionPayload["activeMembershipRole"];
-
 type NavChild = {
   href: string;
   title: string;
-  roles?: NavRole[];
   match?: "exact" | "prefix";
+  permissions?: UserPermission[];
 };
 
 type NavItem = {
   description: string;
   href?: string;
-  roles?: NavRole[];
   title: string;
+  permissions?: UserPermission[];
   children?: NavChild[];
 };
 
-const adminNavItems: NavItem[] = [
+const navItems: NavItem[] = [
   {
     href: "/",
     title: "Tableau de bord",
     description: "Vue générale de la plateforme",
     children: [
-      { href: "/", match: "exact", title: "Vue d'ensemble" },
-      { href: "/analytics", match: "exact", title: "Analyse" },
+      {
+        href: "/",
+        match: "exact",
+        title: "Mon espace",
+      },
+      {
+        href: "/dashboard",
+        match: "exact",
+        title: "Vue d'ensemble",
+        permissions: ["dashboard_view"],
+      },
+      {
+        href: "/analytics",
+        match: "exact",
+        title: "Analyse",
+        permissions: ["dashboard_analytics_view"],
+      },
       {
         href: "/evaluations-analytics",
         match: "exact",
         title: "Évaluations du personnel",
+        permissions: ["dashboard_evaluations_view"],
       },
     ],
   },
@@ -63,47 +78,87 @@ const adminNavItems: NavItem[] = [
     href: "/users",
     title: "Personnels",
     description: "Ajouter et gérer les comptes",
+    permissions: ["user_create", "user_read"],
     children: [
-      { href: "/users", match: "exact", title: "Liste des personnels" },
-      { href: "/users/new", match: "exact", title: "Ajouter un personnel" },
+      {
+        href: "/users",
+        match: "exact",
+        title: "Liste des personnels",
+        permissions: ["user_read"],
+      },
+      {
+        href: "/users/new",
+        match: "exact",
+        title: "Ajouter un personnel",
+        permissions: ["user_create"],
+      },
     ],
   },
   {
     href: "/services",
     title: "Services",
     description: "Configurer les services de l'agence",
+    permissions: ["service_create", "service_read"],
   },
   {
     href: "/posts",
     title: "Postes",
     description: "Gerer les postes de travail",
+    permissions: ["post_create", "post_read"],
   },
   {
     href: "/work-schedules",
     title: "Planning",
     description: "Planifier les services et les affectations",
+    permissions: ["work_schedule_create", "work_schedule_read"],
     children: [
-      { href: "/work-schedules", match: "exact", title: "Liste par semaines" },
+      {
+        href: "/work-schedules",
+        match: "exact",
+        title: "Liste par semaines",
+        permissions: ["work_schedule_read"],
+      },
       {
         href: "/work-schedules/list",
         match: "exact",
         title: "Liste par jours",
+        permissions: ["work_schedule_read"],
       },
-      { href: "/work-schedules/new", match: "exact", title: "Nouveau" },
+      {
+        href: "/work-schedules/new",
+        match: "exact",
+        title: "Nouveau",
+        permissions: ["work_schedule_create"],
+      },
     ],
   },
   {
     href: "/reports",
     title: "Rapports",
     description: "Rapport journalière et incidents",
+    permissions: [
+      "report_read",
+      "report_create",
+      "incident_template_read",
+      "incident_binding_manage",
+    ],
     children: [
-      { href: "/reports", match: "exact", title: "Liste des rapports" },
-      { href: "/reports/new", title: "Ajouter un rapport" },
+      {
+        href: "/reports",
+        match: "exact",
+        title: "Liste des rapports",
+        permissions: ["report_read"],
+      },
+      {
+        href: "/reports/new",
+        title: "Ajouter un rapport",
+        permissions: ["report_create"],
+      },
       {
         href: "/reports/incidents",
         match: "exact",
         title: "Definitions d'incidents",
-        roles: ["admin"],
+        permissions: ["incident_template_read", "incident_binding_manage"],
       },
     ],
   },
@@ -111,101 +166,97 @@ const adminNavItems: NavItem[] = [
     href: "/criteria",
     title: "Critères",
     description: "Créer et organiser les critères",
+    permissions: ["criteria_read", "criteria_create"],
     children: [
-      { href: "/criteria", match: "exact", title: "Liste des critères" },
-      { href: "/criteria/new", title: "Ajouter un critère" },
+      {
+        href: "/criteria",
+        match: "exact",
+        title: "Liste des critères",
+        permissions: ["criteria_read"],
+      },
+      {
+        href: "/criteria/new",
+        title: "Ajouter un critère",
+        permissions: ["criteria_create"],
+      },
     ],
   },
 
   {
     title: "Évaluations",
     description: "Appliquer les critères au personnel",
+    permissions: ["evaluation_create", "evaluation_read"],
     children: [
       {
         href: "/evaluations",
         match: "exact",
         title: "Liste des évaluations",
-        roles: ["admin"],
+        permissions: ["evaluation_read"],
       },
       {
         href: "/evaluations/new",
         match: "exact",
         title: "Ajouter une évaluation",
-        roles: ["admin", "scheduler", "reporter"],
+        permissions: ["evaluation_create"],
       },
     ],
   },
   {
     title: "Signatures de bordereaux",
     description: "Enregistrez les signataires de bordereaux",
+    permissions: ["signature_read", "signature_create"],
     children: [
-      { href: "/signatures", match: "exact", title: "Liste des signatures" },
-      { href: "/signatures/new", match: "exact", title: "Nouvelle signature" },
+      {
+        href: "/signatures",
+        match: "exact",
+        title: "Liste des signatures",
+        permissions: ["signature_read"],
+      },
+      {
+        href: "/signatures/new",
+        match: "exact",
+        title: "Nouvelle signature",
+        permissions: ["signature_create"],
+      },
     ],
   },
   {
     href: "/settings",
     title: "Paramètres",
     description: "Règles automatiques et réglages d'administration",
-    roles: ["admin"],
+    permissions: ["settings_view"],
   },
 ];
 
-function getOperatorNavItems(role: NavRole): NavItem[] {
-  if (role === "scheduler") {
-    return [
-      {
-        title: "Rapports",
-        description: "Rapports journaliers et incidents",
-        children: [
-          { href: "/reports", match: "exact", title: "Liste des rapports" },
-          { href: "/reports/new", match: "exact", title: "Nouveau rapport" },
-        ],
-      },
-      {
-        title: "Évaluations",
-        description: "Appliquer un critère au personnel autorisé",
-        children: [{ href: "/evaluations/new", title: "Nouvelle évaluation" }],
-      },
-      {
-        title: "Planning",
-        description: "Créer et gérer les horaires de travail",
-        children: [
-          { href: "/work-schedules", match: "exact", title: "Vue d'ensemble" },
-          { href: "/work-schedules/list", match: "exact", title: "Liste" },
-          { href: "/work-schedules/new", match: "exact", title: "Nouveau" },
-        ],
-      },
-      {
-        title: "Signatures de bordereaux",
-        description: "Enregistrez les signataires de bordereaux",
-        children: [
-          { href: "/signatures", title: "Liste des signatures" },
-          { href: "/signatures/new", title: "Nouvelle signature" },
-        ],
-      },
-    ];
-  }
-  if (role === "reporter") {
-    return [
-      {
-        title: "Rapports",
-        description: "Rapports journaliers et incidents",
-        children: [
-          { href: "/reports", match: "exact", title: "Liste des rapports" },
-          { href: "/reports/new", match: "exact", title: "Nouveau rapport" },
-        ],
-      },
-    ];
-  }
-
-  return [];
-}
-
 function getNavItems(session: SessionPayload): NavItem[] {
-  return canAccessAgencyAdminWorkspace(session)
-    ? adminNavItems
-    : getOperatorNavItems(session.activeMembershipRole);
+  let items = [...navItems];
+  if (isSuperAdmin(session)) {
+    items = [
+      ...items,
+      {
+        href: "/agencies",
+        title: "Agences",
+        description: "Créer et administrer les agences",
+        permissions: [
+          "agency_create",
+          "agency_read",
+          "agency_update",
+          "agency_delete",
+        ],
+      },
+    ];
+  }
+
+  return items
+    .filter(item =>
+      !item.permissions ? true : hasPermission(session, ...item.permissions)
+    )
+    .map(item => ({
+      ...item,
+      children: item.children?.filter(child =>
+        !child.permissions ? true : hasPermission(session, ...child.permissions)
+      ),
+    }));
 }
 
 function AgencySwitcher({
@@ -245,9 +296,6 @@ function AgencySwitcher({
 
   return (
     <div className="hidden min-w-57.5 sm:block">
-      <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">
-        Agence active
-      </label>
       <select
         className="w-full border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
         value={session.activeAgencyId}
@@ -286,22 +334,7 @@ export function AppShell({ session, memberships, children }: AppShellProps) {
     localStorage.setItem("sidebarOpen", newState.toString());
   }
 
-  const visibleNavItems = getNavItems(session)
-    .map(item => ({
-      ...item,
-      children: item.children?.filter(
-        child =>
-          !child.roles || child.roles.includes(session.activeMembershipRole)
-      ),
-    }))
-    .filter(item => {
-      const hasAccess =
-        !item.roles || item.roles.includes(session.activeMembershipRole);
-      const hasChildren = Boolean(item.children && item.children.length > 0);
-      return hasAccess && (item.href || hasChildren);
-    });
-
-  const roleDisplay = formatRole(session.activeMembershipRole);
+  const visibleNavItems = getNavItems(session);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[linear-gradient(180deg,#ecfeff_0%,#f8fafc_16%,#f8fafc_100%)]">
@@ -343,17 +376,13 @@ export function AppShell({ session, memberships, children }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <AgencySwitcher session={session} memberships={memberships} />
-
+            {" "}
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-slate-900">
                 {session.username}
               </p>
-              <p className="text-xs text-slate-500">
-                Role: {session.activeMembershipRole}
-              </p>
             </div>
-
+            <AgencySwitcher session={session} memberships={memberships} />
             <LogoutButton />
           </div>
         </div>
@@ -408,7 +437,6 @@ export function AppShell({ session, memberships, children }: AppShellProps) {
                   <p className="text-sm font-semibold text-white">
                     {session.username}
                   </p>
-                  <p className="text-xs text-teal-50/85">{roleDisplay}</p>
                 </div>
 
                 <Button
@@ -515,12 +543,12 @@ function NavigationItem({ item, pathname, onNavigate }: NavigationItemProps) {
 
         <CollapsibleContent>
           <div className="space-y-1 border-t border-slate-200 px-3 py-3">
-            {item.children?.map(child => {
+            {item.children?.map((child, index) => {
               const active = isLinkActive(pathname, child.href, child.match);
 
               return (
                 <Link
-                  key={child.href}
+                  key={index}
                   href={child.href}
                   onClick={onNavigate}
                   className={`block border-l-2 px-3 py-2 text-sm transition-colors ${
@@ -562,19 +590,4 @@ function isGroupActive(item: NavItem, pathname: string) {
       isLinkActive(pathname, child.href, child.match)
     )
   );
-}
-
-function formatRole(role: NavRole) {
-  switch (role) {
-    case "admin":
-      return "Administrateur";
-    case "scheduler":
-      return "Planificateur";
-    case "reporter":
-      return "Rapporteur";
-    case "worker":
-      return "Agent";
-    default:
-      return role;
-  }
 }

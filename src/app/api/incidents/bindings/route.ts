@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { canAccessAgencyAdminWorkspace, canCreateReports } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 function serializeBinding(binding: {
   id: string;
@@ -51,7 +51,11 @@ export async function GET() {
 
   if (
     !session ||
-    (!canAccessAgencyAdminWorkspace(session) && !canCreateReports(session))
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
   ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
@@ -118,7 +122,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

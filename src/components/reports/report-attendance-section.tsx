@@ -1,9 +1,6 @@
-import type { MembershipRole } from "@/generated/prisma/enums";
-
 type PersonnelOption = {
   id: string;
   fullName: string;
-  role: MembershipRole;
   username: string;
 };
 
@@ -92,7 +89,7 @@ function AttendanceGrid({
                     {user.fullName}
                   </span>
                   <span className="block text-xs uppercase tracking-wide text-slate-500">
-                    {user.role}
+                    {user.username}
                   </span>
                 </span>
               </label>

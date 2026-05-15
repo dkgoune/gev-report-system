@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
-import type { MembershipRole } from "@/generated/prisma/enums";
-import {
-  canCreateEvaluations,
-  isAgencyAdmin,
-  canAccessAgencyAdminWorkspace,
-} from "@/lib/authz";
+
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { buildScopedUserWhere, listScopedUsers } from "@/lib/user-scope";
-
-const EVALUATION_TARGET_ROLES: MembershipRole[] = [
-  "worker",
-  "reporter",
-  "scheduler",
-];
+import { hasPermission } from "@/lib/permissions";
 
 function normalizePage(value: string | null) {
   const parsed = Number(value);
@@ -42,7 +32,7 @@ function normalizeDateInput(value: string | null) {
 export async function GET(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (!session || !hasPermission(session, "evaluation_read")) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
@@ -113,7 +103,7 @@ export async function GET(request: Request) {
 
   const [totalItems, users, criteria, schedules] = await Promise.all([
     prisma.personnelEvaluation.count({ where }),
-    listScopedUsers(session, EVALUATION_TARGET_ROLES),
+    listScopedUsers(session),
     prisma.criterion.findMany({
       where: {
         agencyId: session.activeAgencyId,
@@ -236,7 +226,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canCreateEvaluations(session)) {
+  if (!session || !hasPermission(session, "evaluation_create")) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
@@ -274,7 +264,7 @@ export async function POST(request: Request) {
     const [evaluatedUser, criterion, workSchedule] = await Promise.all([
       prisma.user.findFirst({
         where: {
-          ...buildScopedUserWhere(session, EVALUATION_TARGET_ROLES),
+          ...buildScopedUserWhere(session),
           id: evaluatedUserId,
         },
         select: {
@@ -345,7 +335,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!workSchedule.assignments.length && !isAgencyAdmin(session)) {
+    if (!workSchedule.assignments.length) {
       return NextResponse.json(
         {
           error:

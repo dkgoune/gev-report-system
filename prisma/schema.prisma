@@ -14,13 +14,6 @@ enum SystemRole {
   super_admin
 }
 
-enum MembershipRole {
-  admin
-  scheduler
-  reporter
-  worker
-}
-
 enum WorkScheduleStatus {
   draft
   published
@@ -51,6 +44,91 @@ enum IncidentFieldType {
   multiselect
 }
 
+enum UserPermission {
+  // Dashboard
+  dashboard_view
+  dashboard_analytics_view
+  dashboard_evaluations_view
+
+  // Users
+  user_create
+  user_read
+  user_update
+  user_delete
+  user_reset_password
+  user_enable_disable
+  user_manage_permissions
+
+  // Services
+  service_create
+  service_read
+  service_update
+  service_delete
+  service_enable_disable
+
+  // Posts
+  post_create
+  post_read
+  post_update
+  post_delete
+  post_enable_disable
+
+  // Work schedules
+  work_schedule_create
+  work_schedule_read
+  work_schedule_update
+  work_schedule_delete
+  work_schedule_publish
+  work_schedule_print
+
+  // Reports
+  report_create
+  report_read
+  report_update
+  report_mark_read
+
+  // Incidents
+  incident_template_manage
+  incident_template_read
+  incident_binding_manage
+
+  // Criteria
+  criteria_create
+  criteria_read
+  criteria_update
+  criteria_enable_disable
+
+  // Evaluations
+  evaluation_create
+  evaluation_read
+
+  // Signatures
+  signature_create
+  signature_read
+  signature_update
+
+  // Settings
+  settings_view
+  settings_attendance_rules_view
+  settings_attendance_rules_create
+  settings_attendance_rules_update
+  settings_attendance_rules_delete
+  settings_attendance_rules_enable_disable
+
+  // Agencies (super admin area)
+  agency_create
+  agency_read
+  agency_update
+  agency_delete
+}
+
+enum PermissionWindow {
+  day
+  week
+  month
+  total
+}
+
 // ==================== TENANCY & IDENTITY ====================
 
 model Agency {
@@ -69,6 +147,7 @@ model Agency {
   incidentTemplates           IncidentTemplate[]
   criteria                    Criterion[]
   attendanceCriterionSettings AttendanceCriterionSetting[]
+  userPermissionRules         UserPermissionRule[]
 
   @@map("agencies")
 }
@@ -100,21 +179,22 @@ model User {
   generalReportsCreated GeneralReport[] @relation("GeneralReportReporter")
   generalReportsRead    GeneralReport[] @relation("GeneralReportReader")
 
-  workScheduleAssignments WorkScheduleAssignment[]
-  signatureLogs           SignatureLog[]
+  workScheduleAssignments    WorkScheduleAssignment[]
+  signatureLogs              SignatureLog[]
+  userPermissionRules        UserPermissionRule[]     @relation("UserPermissionRules_TargetUser")
+  createdUserPermissionRules UserPermissionRule[]     @relation("UserPermissionRules_Creator")
 
   @@map("users")
 }
 
 model UserAgencyMembership {
-  id        String         @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   agencyId  String
-  role      MembershipRole @default(worker)
-  isActive  Boolean        @default(true)
-  joinedAt  DateTime       @default(now())
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  isActive  Boolean  @default(true)
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -476,4 +556,25 @@ model SignatureLog {
   @@index([workScheduleId])
   @@index([userId])
   @@map("signature_logs")
+}
+
+model UserPermissionRule {
+  id          String           @id @default(cuid())
+  userId      String
+  agencyId    String
+  permission  UserPermission
+  isEnabled   Boolean          @default(true)
+  maxCount    Int?
+  window      PermissionWindow @default(total)
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user      User   @relation("UserPermissionRules_TargetUser", fields: [userId], references: [id], onDelete: Cascade)
+  agency    Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("UserPermissionRules_Creator", fields: [createdById], references: [id])
+
+  @@unique([userId, agencyId, permission])
+  @@index([agencyId, permission])
+  @@map("user_permission_rules")
 }

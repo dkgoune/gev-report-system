@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
-import { canAccessPlatform } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -13,10 +12,6 @@ export default async function ProtectedLayout({
 
   if (!session) {
     redirect("/auth/login");
-  }
-
-  if (!canAccessPlatform(session)) {
-    redirect("/auth/login?error=unauthorized");
   }
 
   const memberships = await prisma.userAgencyMembership.findMany({
@@ -32,7 +27,6 @@ export default async function ProtectedLayout({
     },
     select: {
       agencyId: true,
-      role: true,
       agency: {
         select: {
           name: true,
@@ -59,7 +53,6 @@ export default async function ProtectedLayout({
       memberships={memberships.map(membership => ({
         agencyId: membership.agencyId,
         agencyName: membership.agency.name,
-        role: membership.role,
       }))}
     >
       {children}

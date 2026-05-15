@@ -1,19 +1,10 @@
-import { redirect } from "next/navigation";
 import { LoginForm } from "@/app/auth/login/login-form";
-import { canAccessPlatform } from "@/lib/authz";
-import { getServerSession } from "@/lib/session";
 
 type LoginPageProps = {
   searchParams: Promise<{ next?: string; error?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const session = await getServerSession();
-
-  if (session && canAccessPlatform(session)) {
-    redirect("/");
-  }
-
   const params = await searchParams;
   const nextPath =
     params.next && params.next.startsWith("/") ? params.next : "/";

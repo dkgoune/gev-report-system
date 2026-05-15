@@ -2,10 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { WeeklyWorkScheduleBoard } from "@/components/work-schedule-management/weekly-work-schedule-board";
 import { Button } from "@/components/ui/button";
-import { canScheduleWork } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { formatScheduleDateKey, getMondayOfWeek } from "@/lib/work-schedules";
+import { hasPermission } from "@/lib/permissions";
 
 type WeeklyViewPageProps = {
   searchParams: Promise<{
@@ -23,7 +23,14 @@ export default async function WeeklyViewPage({
     redirect("/auth/login");
   }
 
-  if (!canScheduleWork(session)) {
+  if (
+    !hasPermission(
+      session,
+      "work_schedule_create",
+      "work_schedule_update",
+      "work_schedule_delete"
+    )
+  ) {
     redirect("/");
   }
 

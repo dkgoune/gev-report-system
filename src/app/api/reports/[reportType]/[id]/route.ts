@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { canMarkReportsAsRead, hasLeadershipRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(
   _request: Request,
@@ -9,7 +9,16 @@ export async function GET(
 ) {
   const session = await getServerSession();
 
-  if (!session || !hasLeadershipRole(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "report_read",
+      "report_create",
+      "report_mark_read",
+      "report_update"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -94,7 +103,15 @@ export async function PATCH(
 ) {
   const session = await getServerSession();
 
-  if (!session || !canMarkReportsAsRead(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "report_create",
+      "report_mark_read",
+      "report_update"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 

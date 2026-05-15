@@ -1,23 +1,6 @@
-import { redirect } from "next/navigation";
 import type { IncidentTemplateOption } from "@/components/incident-management/types";
 import { sanitizeIncidentFields } from "@/lib/incident-field-schema";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "@/lib/session";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
-
-export async function requireIncidentAdminSession() {
-  const session = await getServerSession();
-
-  if (!session) {
-    redirect("/auth/login");
-  }
-
-  if (!canAccessAgencyAdminWorkspace(session)) {
-    redirect("/");
-  }
-
-  return session;
-}
 
 function serializeTemplate(template: {
   id: string;

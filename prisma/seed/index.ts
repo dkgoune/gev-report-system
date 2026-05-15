@@ -159,7 +159,6 @@ export async function runSeed() {
               membership.agencyKey,
               "membership agency"
             ),
-            role: membership.role,
             isActive: membership.isActive,
           },
         });

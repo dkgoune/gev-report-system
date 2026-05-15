@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
 import { IncidentTemplateVersionStatus } from "@/generated/prisma/enums";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { sanitizeIncidentFields } from "@/lib/incident-field-schema";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

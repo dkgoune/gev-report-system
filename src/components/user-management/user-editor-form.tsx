@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { roleOptions } from "./constants";
-import type { Role, UserFormState } from "./types";
+import type { UserPermission } from "@/generated/prisma/browser";
+import { allPermissions } from "@/lib/permissions";
+import type { UserFormState } from "./types";
 
 type UserEditorFormProps = {
   mode: "create" | "update";
@@ -14,6 +15,7 @@ type UserEditorFormProps = {
   userId?: string;
   title: string;
   description: string;
+  canEditPermissions?: boolean;
 };
 
 export function UserEditorForm({
@@ -22,10 +24,68 @@ export function UserEditorForm({
   userId,
   title,
   description,
+  canEditPermissions,
 }: UserEditorFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<UserFormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
+
+  const permissionGroups = useMemo(() => {
+    const groups: {
+      key: string;
+      title: string;
+      items: { value: UserPermission; label: string }[];
+    }[] = [
+      { key: "dashboard", title: "Tableau de bord", items: [] },
+      { key: "user", title: "Personnel", items: [] },
+      { key: "service", title: "Services", items: [] },
+      { key: "post", title: "Postes", items: [] },
+      { key: "work_schedule", title: "Plannings", items: [] },
+      { key: "report", title: "Rapports", items: [] },
+      { key: "incident", title: "Incidents", items: [] },
+      { key: "criteria", title: "Critères", items: [] },
+      { key: "evaluation", title: "Évaluations", items: [] },
+      { key: "signature", title: "Signatures", items: [] },
+      { key: "settings", title: "Paramètres", items: [] },
+      { key: "agency", title: "Agences", items: [] },
+      { key: "other", title: "Autres", items: [] },
+    ];
+
+    const getKey = (permission: UserPermission): string => {
+      if (permission.startsWith("work_schedule_")) {
+        return "work_schedule";
+      }
+
+      return permission.split("_")[0] || "other";
+    };
+
+    for (const permission of allPermissions) {
+      const key = getKey(permission.value);
+      const group = groups.find(entry => entry.key === key);
+
+      if (group) {
+        group.items.push(permission);
+      } else {
+        groups.find(entry => entry.key === "other")?.items.push(permission);
+      }
+    }
+
+    return groups.filter(group => group.items.length > 0);
+  }, []);
+
+  function togglePermission(permission: UserPermission) {
+    setFormState(current => {
+      const hasPermission = current.permissions.includes(permission);
+      const nextPermissions = hasPermission
+        ? current.permissions.filter(item => item !== permission)
+        : [...current.permissions, permission];
+
+      return {
+        ...current,
+        permissions: nextPermissions,
+      };
+    });
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,13 +95,16 @@ export function UserEditorForm({
     const method = mode === "create" ? "POST" : "PATCH";
     const body =
       mode === "create"
-        ? formState
+        ? {
+            ...formState,
+            permissions: formState.permissions,
+          }
         : {
             fullName: formState.fullName,
             username: formState.username,
-            role: formState.role,
             phone: formState.phone || null,
             isActive: formState.isActive,
+            permissions: formState.permissions,
           };
 
     const response = await fetch(endpoint, {
@@ -122,26 +185,6 @@ export function UserEditorForm({
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700">Rôle</span>
-            <select
-              value={formState.role}
-              onChange={event =>
-                setFormState(current => ({
-                  ...current,
-                  role: event.target.value as Role,
-                }))
-              }
-              className="w-full border border-slate-300 px-3 py-2"
-            >
-              {roleOptions.map(role => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1 text-sm">
             <span className="font-medium text-slate-700">Téléphone</span>
             <input
               value={formState.phone}
@@ -187,6 +230,84 @@ export function UserEditorForm({
             />
             <span>Compte actif</span>
           </label>
+
+          <section className="space-y-3 border border-slate-300 bg-white p-3 md:col-span-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Permissions utilisateur
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Sélectionnez les droits accordés a ce personnel.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setFormState(current => ({
+                      ...current,
+                      permissions: allPermissions.map(item => item.value),
+                    }))
+                  }
+                >
+                  Tout sélectionner
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setFormState(current => ({
+                      ...current,
+                      permissions: [],
+                    }))
+                  }
+                >
+                  Tout retirer
+                </Button>
+              </div>
+            </div>
+
+            {canEditPermissions && (
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {permissionGroups.map(group => (
+                  <fieldset
+                    key={group.key}
+                    className="space-y-2 border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <legend className="px-1 text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      {group.title}
+                    </legend>
+
+                    <div className="grid gap-2">
+                      {group.items.map(permission => (
+                        <label
+                          key={permission.value}
+                          className="flex items-start gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formState.permissions.includes(
+                              permission.value
+                            )}
+                            onChange={() => togglePermission(permission.value)}
+                            className="mt-0.5"
+                          />
+                          <span className="text-slate-700">
+                            {permission.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+            )}
+          </section>
 
           <div className="flex flex-wrap gap-2 md:col-span-2">
             <Button type="submit" disabled={submitting}>

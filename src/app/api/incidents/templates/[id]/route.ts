@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,7 +17,14 @@ function normalizeCode(value: string) {
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
@@ -90,7 +97,14 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

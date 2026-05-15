@@ -55,27 +55,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { roleLabel, roleOptions } from "./constants";
 import type { UserItem } from "./types";
 
 type UsersListProps = {
   users: UserItem[];
   loading: boolean;
   search: string;
-  isAdmin: boolean;
   togglingId: string | null;
   onSearchChange: (value: string) => void;
   onToggleActive: (user: UserItem) => Promise<void>;
+  hasResetPasswordPermission: boolean;
 };
 
 export function UsersList({
   users,
   loading,
   search,
-  isAdmin,
   togglingId,
   onSearchChange,
   onToggleActive,
+  hasResetPasswordPermission,
 }: UsersListProps) {
   const router = useRouter();
   const [sorting, setSorting] = useState<SortingState>([
@@ -127,21 +126,7 @@ export function UsersList({
           <span>@{row.original.username}</span>
         ),
       },
-      {
-        id: "role",
-        accessorFn: (user: UserItem) => roleLabel(user.role),
-        header: ({ column }: HeaderContext<UserItem, unknown>) => (
-          <button
-            type="button"
-            className="flex items-center gap-1 font-semibold"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Rôle
-            <ArrowUpDown className="size-4" />
-          </button>
-        ),
-        filterFn: "equalsString",
-      },
+
       {
         id: "phone",
         accessorFn: (user: UserItem) => user.phone || "Non renseigné",
@@ -200,7 +185,7 @@ export function UsersList({
                   <Pencil />
                   Modifier le personnel
                 </DropdownMenuItem>
-                {isAdmin ? (
+                {hasResetPasswordPermission ? (
                   <DropdownMenuItem
                     onSelect={() =>
                       router.push(`/users/${row.original.id}/reset-password`)
@@ -230,7 +215,7 @@ export function UsersList({
         ),
       },
     ],
-    [isAdmin, router, togglingId]
+    [hasResetPasswordPermission, router, togglingId]
   );
 
   // TanStack Table manages imperative table helpers internally; this lint rule is a compiler advisory, not a runtime issue here.
@@ -277,32 +262,6 @@ export function UsersList({
               placeholder="Rechercher par nom, username, rôle ou téléphone"
               className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
-          </label>
-
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-700">Rôle</span>
-            <Select
-              value={
-                (table.getColumn("role")?.getFilterValue() as string) ?? "all"
-              }
-              onValueChange={value =>
-                table
-                  .getColumn("role")
-                  ?.setFilterValue(value === "all" ? undefined : value)
-              }
-            >
-              <SelectTrigger className="w-full bg-white text-sm">
-                <SelectValue placeholder="Tous les rôles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les rôles</SelectItem>
-                {roleOptions.map(role => (
-                  <SelectItem key={role.value} value={role.label}>
-                    {role.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </label>
 
           <label className="space-y-2 text-sm">

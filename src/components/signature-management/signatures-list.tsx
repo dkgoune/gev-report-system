@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { roleLabel } from "@/components/user-management/constants";
 import {
   Table,
   TableBody,
@@ -9,16 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type {
-  SignatureAgentOption,
-  SignatureLogItem,
-  SignatureScheduleOption,
-} from "./types";
+import type { SignatureLogItem, SignatureScheduleOption } from "./types";
 import { AutoFilterForm } from "../ui/auto-filter-form";
 
 type SignaturesListProps = {
   schedules: SignatureScheduleOption[];
-  signers: SignatureAgentOption[];
   filters: {
     endDate: string;
     page: number;
@@ -41,7 +35,6 @@ type SignaturesListProps = {
 
 export function SignaturesList({
   schedules,
-  signers,
   filters,
   signatures,
   summary,
@@ -90,22 +83,6 @@ export function SignaturesList({
               placeholder="Rechercher par bordereau ou signataire"
               className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
-          </label>
-
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-700">Signataire</span>
-            <select
-              name="userId"
-              defaultValue={filters.userId}
-              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="">Tous les signataires</option>
-              {signers.map(signer => (
-                <option key={signer.id} value={signer.id}>
-                  {signer.fullName} ({roleLabel(signer.role)})
-                </option>
-              ))}
-            </select>
           </label>
 
           {schedules.length > 0 ? (
@@ -245,10 +222,6 @@ export function SignaturesList({
                   <div>
                     <p className="font-medium text-slate-900">
                       {signature.user.fullName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {roleLabel(signature.user.role)} - @
-                      {signature.user.username}
                     </p>
                   </div>
                 </TableCell>

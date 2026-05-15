@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SignaturesList } from "@/components/signature-management/signatures-list";
 import { getServerSession } from "@/lib/session";
 import { listSignatureLogs } from "@/lib/signature-logs";
+import { hasPermission } from "@/lib/permissions";
 
 type SignaturesPageProps = {
   searchParams: Promise<{
@@ -24,11 +25,14 @@ export default async function SignaturesPage({
     redirect("/auth/login");
   }
 
+  if (!hasPermission(session, "signature_read")) {
+    redirect("/");
+  }
+
   const payload = await listSignatureLogs(session, await searchParams);
 
   return (
     <SignaturesList
-      signers={payload.signers}
       filters={payload.filters}
       schedules={payload.schedules}
       signatures={payload.signatures}

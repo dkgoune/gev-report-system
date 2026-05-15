@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
-import { canScheduleWork } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { isPastScheduleDate } from "@/lib/work-schedules";
+import { hasPermission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canScheduleWork(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "work_schedule_read",
+      "work_schedule_update",
+      "work_schedule_publish",
+      "work_schedule_delete",
+      "work_schedule_print"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
@@ -72,7 +82,15 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canScheduleWork(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "work_schedule_update",
+      "work_schedule_publish",
+      "work_schedule_delete"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

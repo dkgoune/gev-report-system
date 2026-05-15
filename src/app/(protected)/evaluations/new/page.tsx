@@ -1,20 +1,18 @@
 import { EvaluationManager } from "@/components/evaluation-management/evaluation-manager";
-import { canCreateEvaluations } from "@/lib/authz";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { listScopedUsers } from "@/lib/user-scope";
 
-const EVALUATION_TARGET_ROLES = ["worker", "reporter", "scheduler"] as const;
-
 export default async function CreateEvaluationPage() {
   const session = await getServerSession();
 
-  if (!session || !canCreateEvaluations(session)) {
+  if (!session || !hasPermission(session, "evaluation_create")) {
     return null;
   }
 
   const [users, criteria, schedules] = await Promise.all([
-    listScopedUsers(session, [...EVALUATION_TARGET_ROLES]),
+    listScopedUsers(session),
     prisma.criterion.findMany({
       where: {
         isActive: true,
@@ -48,7 +46,7 @@ export default async function CreateEvaluationPage() {
 
   return (
     <EvaluationManager
-      canViewList={session.activeMembershipRole === "admin"}
+      canViewList={hasPermission(session, "evaluation_read")}
       initialCriteria={criteria}
       initialSchedules={schedules.map(schedule => ({
         id: schedule.id,

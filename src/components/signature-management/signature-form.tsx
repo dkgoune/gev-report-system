@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { roleLabel } from "@/components/user-management/constants";
 import type {
   SignatureAgentOption,
   SignatureFormState,
@@ -36,8 +35,8 @@ export function SignatureForm({
     () =>
       signers.map(signer => ({
         value: signer.id,
-        label: `${signer.fullName} (${roleLabel(signer.role)})`,
-        keywords: [signer.username, roleLabel(signer.role)],
+        label: `${signer.fullName}})`,
+        keywords: [signer.username],
       })),
     [signers]
   );
@@ -61,8 +60,8 @@ export function SignatureForm({
     () =>
       (signersBySchedule[formState.workScheduleId] ?? []).map(signer => ({
         value: signer.id,
-        label: `${signer.fullName} (${roleLabel(signer.role)})`,
-        keywords: [signer.username, roleLabel(signer.role)],
+        label: `${signer.fullName}`,
+        keywords: [signer.username],
       })),
     [formState.workScheduleId, signersBySchedule]
   );

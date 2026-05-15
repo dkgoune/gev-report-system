@@ -1,14 +1,9 @@
-import type { MembershipRole } from "@/generated/prisma/enums";
-
-export type Role = MembershipRole;
-
-export type Service = "envoi" | "piste" | "retrait";
+import { UserPermission } from "@/generated/prisma/browser";
 
 export type UserItem = {
   id: string;
   fullName: string;
   username: string;
-  role: Role;
   membershipActive: boolean;
   phone: string | null;
   isActive: boolean;
@@ -19,18 +14,8 @@ export type UserItem = {
 export type UserFormState = {
   fullName: string;
   username: string;
-  role: Role;
   phone: string;
   password: string;
   isActive: boolean;
-};
-
-export type RoleOption = {
-  value: Role;
-  label: string;
-};
-
-export type ServiceOption = {
-  value: Service;
-  label: string;
+  permissions: UserPermission[];
 };

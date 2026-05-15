@@ -1,5 +1,4 @@
 import type { Prisma } from "@/generated/prisma/client";
-import type { MembershipRole } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/session";
 
@@ -13,8 +12,7 @@ type ScopedUserOption = {
  * Build a WHERE clause for users within the same agency
  */
 export function buildScopedUserWhere(
-  session: SessionPayload,
-  allowedRoles?: MembershipRole[]
+  session: SessionPayload
 ): Prisma.UserWhereInput {
   const where: Prisma.UserWhereInput = {
     isActive: true,
@@ -26,28 +24,15 @@ export function buildScopedUserWhere(
     },
   };
 
-  if (allowedRoles?.length) {
-    where.memberships = {
-      some: {
-        agencyId: session.activeAgencyId,
-        isActive: true,
-        role: { in: allowedRoles },
-      },
-    };
-  }
-
   return where;
 }
 
 /**
- * List users within the active agency, optionally filtered by role
+ * List users within the active agency
  */
-export async function listScopedUsers(
-  session: SessionPayload,
-  allowedRoles?: MembershipRole[]
-) {
+export async function listScopedUsers(session: SessionPayload) {
   return prisma.user.findMany({
-    where: buildScopedUserWhere(session, allowedRoles),
+    where: buildScopedUserWhere(session),
     orderBy: [{ fullName: "asc" }, { username: "asc" }],
     select: {
       id: true,

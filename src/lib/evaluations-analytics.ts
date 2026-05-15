@@ -1,4 +1,3 @@
-import type { MembershipRole } from "@/generated/prisma/enums";
 import { formatRangeLabel, type AnalyticsRange } from "@/lib/analytics-range";
 import type {
   EvaluationsAnalyticsLeaderboardEntry,
@@ -16,7 +15,6 @@ type AnalyticsEvaluationRecord = {
   date: string;
   evaluator: {
     fullName: string;
-    role: MembershipRole;
     userId: string;
   };
   score: number;
@@ -25,26 +23,9 @@ type AnalyticsEvaluationRecord = {
   worker: {
     fullName: string;
     groupName: string;
-    role: MembershipRole;
     userId: string;
   };
 };
-
-function membershipRoleFromRaw(
-  value: string | undefined,
-  fallback: MembershipRole = "worker"
-): MembershipRole {
-  if (
-    value === "admin" ||
-    value === "scheduler" ||
-    value === "reporter" ||
-    value === "worker"
-  ) {
-    return value;
-  }
-
-  return fallback;
-}
 
 function normalizeImpact(value: string, score: number): NormalizedImpact {
   const normalized = value.trim().toUpperCase();
@@ -110,32 +91,12 @@ export async function getEvaluationsAnalyticsSnapshot(
         select: {
           id: true,
           fullName: true,
-          memberships: {
-            where: {
-              agencyId: session.activeAgencyId,
-              isActive: true,
-            },
-            select: {
-              role: true,
-            },
-            take: 1,
-          },
         },
       },
       evaluatingLeader: {
         select: {
           id: true,
           fullName: true,
-          memberships: {
-            where: {
-              agencyId: session.activeAgencyId,
-              isActive: true,
-            },
-            select: {
-              role: true,
-            },
-            take: 1,
-          },
         },
       },
       workSchedule: {
@@ -193,19 +154,12 @@ export async function getEvaluationsAnalyticsSnapshot(
       worker: {
         userId: evaluation.evaluatedUser.id,
         fullName: evaluation.evaluatedUser.fullName,
-        role: membershipRoleFromRaw(
-          evaluation.evaluatedUser.memberships[0]?.role,
-          "worker"
-        ),
+
         groupName: workerAssignment?.post.name || fallbackGroupName,
       },
       evaluator: {
         userId: evaluation.evaluatingLeader.id,
         fullName: evaluation.evaluatingLeader.fullName,
-        role: membershipRoleFromRaw(
-          evaluation.evaluatingLeader.memberships[0]?.role,
-          "reporter"
-        ),
       },
     };
   });
@@ -217,7 +171,6 @@ export async function getEvaluationsAnalyticsSnapshot(
       evaluationCount: number;
       fullName: string;
       groupName: string;
-      role: MembershipRole;
       totalScore: number;
       userId: string;
     }
@@ -248,7 +201,6 @@ export async function getEvaluationsAnalyticsSnapshot(
       distinctWorkers: Set<string>;
       evaluationCount: number;
       fullName: string;
-      role: MembershipRole;
       totalScore: number;
       userId: string;
     }
@@ -267,7 +219,6 @@ export async function getEvaluationsAnalyticsSnapshot(
     const worker = workerMap.get(record.worker.userId) ?? {
       userId: record.worker.userId,
       fullName: record.worker.fullName,
-      role: record.worker.role,
       groupName: record.worker.groupName,
       evaluationCount: 0,
       totalScore: 0,
@@ -303,7 +254,6 @@ export async function getEvaluationsAnalyticsSnapshot(
     const evaluator = evaluatorMap.get(record.evaluator.userId) ?? {
       userId: record.evaluator.userId,
       fullName: record.evaluator.fullName,
-      role: record.evaluator.role,
       evaluationCount: 0,
       totalScore: 0,
       distinctWorkers: new Set<string>(),
@@ -336,7 +286,6 @@ export async function getEvaluationsAnalyticsSnapshot(
     .map(worker => ({
       userId: worker.userId,
       fullName: worker.fullName,
-      role: worker.role,
       groupName: worker.groupName,
       evaluationCount: worker.evaluationCount,
       totalScore: worker.totalScore,
@@ -370,7 +319,6 @@ export async function getEvaluationsAnalyticsSnapshot(
     .map(item => ({
       userId: item.userId,
       fullName: item.fullName,
-      role: item.role,
       evaluationCount: item.evaluationCount,
       distinctWorkers: item.distinctWorkers.size,
       totalScore: item.totalScore,

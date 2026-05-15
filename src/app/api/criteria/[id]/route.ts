@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 const ALLOWED_IMPACTS: string[] = ["low", "high"];
 
@@ -68,7 +68,15 @@ type Params = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "criteria_create",
+      "criteria_update",
+      "criteria_enable_disable"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 

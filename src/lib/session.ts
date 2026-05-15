@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import type { SystemRole, MembershipRole } from "@/generated/prisma/enums";
+import type { UserPermission, SystemRole } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "gev_session";
@@ -11,8 +11,8 @@ type SessionPayload = {
   username: string;
   systemRole: SystemRole;
   activeAgencyId: string;
-  activeMembershipRole: MembershipRole;
   exp: number;
+  permissions: UserPermission[];
 };
 
 export type { SessionPayload };
@@ -81,7 +81,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
       !payload.username ||
       !payload.systemRole ||
       !payload.activeAgencyId ||
-      !payload.activeMembershipRole ||
+      !payload.permissions ||
       !payload.exp
     ) {
       return null;

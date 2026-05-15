@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { ReportMarkReadButton } from "@/components/reports/report-mark-read-button";
-import { isAgencyAdmin } from "@/lib/authz";
+import { hasPermission } from "@/lib/permissions";
 
 type ReportDetailPageProps = {
   params: Promise<{
@@ -19,6 +19,18 @@ export default async function ReportDetailPage({
 
   if (!session) {
     redirect("/auth/login");
+  }
+
+  if (
+    !hasPermission(
+      session,
+      "report_read",
+      "report_create",
+      "report_update",
+      "report_mark_read"
+    )
+  ) {
+    redirect("/");
   }
 
   const { id } = await params;
@@ -79,7 +91,7 @@ export default async function ReportDetailPage({
           <Button asChild variant="outline">
             <Link href="/reports">Retour à la liste</Link>
           </Button>
-          {isAgencyAdmin(session) && (
+          {hasPermission(session, "report_mark_read") && (
             <ReportMarkReadButton
               disabled={report.isRead}
               reportId={report.id}

@@ -7,7 +7,6 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import type { MembershipRole } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { type EvaluationsAnalyticsSnapshot } from "@/lib/evaluations-analytics.types";
 import { buildRangeSearchParams } from "@/lib/analytics-range";
@@ -28,20 +27,6 @@ function formatSigned(value: number) {
   }).format(value);
 
   return value > 0 ? `+${formatted}` : formatted;
-}
-
-function roleLabel(role: MembershipRole) {
-  switch (role) {
-    case "admin":
-      return "Administrateur";
-    case "scheduler":
-      return "Planificateur";
-    case "reporter":
-      return "Rapporteur";
-    case "worker":
-    default:
-      return "Travailleur";
-  }
 }
 
 function buildAnalyticsHref(
@@ -230,9 +215,6 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                     <p className="font-medium text-slate-900">
                       {worker.fullName}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {roleLabel(worker.role)} - {worker.groupName}
-                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-semibold text-slate-900">
@@ -263,9 +245,6 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                   <div>
                     <p className="font-medium text-slate-900">
                       {worker.fullName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {roleLabel(worker.role)} - {worker.groupName}
                     </p>
                   </div>
                   <div className="text-right">
@@ -315,9 +294,6 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="font-medium text-slate-900">
                         {worker.fullName}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {roleLabel(worker.role)}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
@@ -474,9 +450,6 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                 <div>
                   <p className="font-medium text-slate-900">
                     {evaluator.fullName}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {roleLabel(evaluator.role)}
                   </p>
                 </div>
                 <div className="grid gap-2 text-sm text-slate-600 md:grid-cols-3 md:text-right">

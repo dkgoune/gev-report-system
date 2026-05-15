@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { ReportCreationManager } from "@/components/reports/report-creation-manager";
 import { GENERAL_REPORT_FIELDS } from "@/components/reports/report-general-fields";
-import { canAccessAgencyAdminWorkspace, canCreateReports } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type NewReportPageProps = {
   searchParams: Promise<{
@@ -20,7 +20,7 @@ export default async function NewReportPage({
     redirect("/auth/login");
   }
 
-  if (!canCreateReports(session)) {
+  if (!hasPermission(session, "report_create")) {
     redirect("/reports");
   }
 
@@ -34,8 +34,6 @@ export default async function NewReportPage({
   const todayDate = new Date(`${todayIso}T00:00:00.000Z`);
   const earliestDate = new Date(`${earliestIso}T00:00:00.000Z`);
 
-  const isAdmin = canAccessAgencyAdminWorkspace(session);
-
   const schedules = await prisma.workSchedule.findMany({
     where: {
       agencyId: session.activeAgencyId,
@@ -43,16 +41,7 @@ export default async function NewReportPage({
         gte: earliestDate,
         lte: todayDate,
       },
-      ...(!isAdmin
-        ? {
-            assignments: {
-              some: {
-                userId: session.userId,
-                OR: [{ isLeader: true }, { isSubleader: true }],
-              },
-            },
-          }
-        : {}),
+
       generalReport: null,
     },
     orderBy: [{ workDate: "desc" }],
@@ -78,9 +67,6 @@ export default async function NewReportPage({
                   isActive: true,
                 },
                 take: 1,
-                select: {
-                  role: true,
-                },
               },
             },
           },
@@ -107,7 +93,6 @@ export default async function NewReportPage({
         id: assignment.user.id,
         fullName: assignment.user.fullName,
         username: assignment.user.username,
-        role: assignment.user.memberships[0]?.role ?? "worker",
       })),
     ])
   );

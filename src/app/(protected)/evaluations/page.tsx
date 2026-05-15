@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { EvaluationsList } from "@/components/evaluation-management/evaluations-list";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type EvaluationsPageProps = {
   searchParams: Promise<{
@@ -54,7 +54,7 @@ export default async function EvaluationsPage({
     redirect("/auth/login");
   }
 
-  if (!canAccessAgencyAdminWorkspace(session)) {
+  if (!hasPermission(session, "evaluation_read")) {
     redirect("/");
   }
 

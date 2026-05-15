@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (!session || !hasPermission(session, "settings_attendance_rules_create")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { canScheduleWork } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import {
   formatScheduleDateKey,
@@ -9,6 +8,7 @@ import {
   getSundayOfWeek,
 } from "@/lib/work-schedules";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type WeeklyCard = {
   key: string;
@@ -61,7 +61,15 @@ export default async function WorkSchedulesPage() {
     redirect("/auth/login");
   }
 
-  if (!canScheduleWork(session)) {
+  if (
+    !hasPermission(
+      session,
+      "work_schedule_read",
+      "work_schedule_create",
+      "work_schedule_update",
+      "work_schedule_delete"
+    )
+  ) {
     redirect("/");
   }
 

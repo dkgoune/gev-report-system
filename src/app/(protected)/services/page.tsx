@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { ServicesManager } from "@/components/service-management/services-manager";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 export default async function ServicesPage() {
   const session = await getServerSession();
@@ -11,7 +11,15 @@ export default async function ServicesPage() {
     redirect("/auth/login");
   }
 
-  if (!canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !hasPermission(
+      session,
+      "service_create",
+      "service_read",
+      "service_update",
+      "service_delete"
+    )
+  ) {
     redirect("/");
   }
 

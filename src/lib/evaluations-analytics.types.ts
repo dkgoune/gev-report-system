@@ -1,4 +1,3 @@
-import type { MembershipRole } from "@/generated/prisma/enums";
 import type { AnalyticsRange } from "@/lib/analytics-range";
 
 type NormalizedImpact = "POSITIVE" | "NEGATIVE";
@@ -8,7 +7,6 @@ export type EvaluationsAnalyticsLeaderboardEntry = {
   evaluationCount: number;
   fullName: string;
   groupName: string;
-  role: MembershipRole;
   totalScore: number;
   userId: string;
 };
@@ -25,7 +23,6 @@ export type EvaluationsAnalyticsSnapshot = {
     distinctWorkers: number;
     evaluationCount: number;
     fullName: string;
-    role: MembershipRole;
     totalScore: number;
     userId: string;
   }>;

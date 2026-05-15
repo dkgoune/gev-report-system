@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { WorkSchedulesListFilters } from "@/components/work-schedule-management/work-schedules-list-filters";
 import { Button } from "@/components/ui/button";
-import { canScheduleWork } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type WorkSchedulesListPageProps = {
   searchParams: Promise<{
@@ -89,7 +89,15 @@ export default async function WorkSchedulesListPage({
     redirect("/auth/login");
   }
 
-  if (!canScheduleWork(session)) {
+  if (
+    !hasPermission(
+      session,
+      "work_schedule_read",
+      "work_schedule_create",
+      "work_schedule_update",
+      "work_schedule_delete"
+    )
+  ) {
     redirect("/");
   }
 

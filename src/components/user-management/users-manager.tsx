@@ -4,21 +4,18 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { roleLabel } from "./constants";
 import type { UserItem } from "./types";
 import { UsersList } from "./users-list";
 
 type UsersManagerProps = {
   initialUsers: UserItem[];
-  currentUserRole: string;
+  hasResetPasswordPermission: boolean;
 };
 
 export function UsersManager({
   initialUsers,
-  currentUserRole,
+  hasResetPasswordPermission,
 }: UsersManagerProps) {
-  const isAdmin = currentUserRole === "admin";
-
   const [users, setUsers] = useState<UserItem[]>(initialUsers);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -53,7 +50,6 @@ export function UsersManager({
       return (
         user.fullName.toLowerCase().includes(term) ||
         user.username.toLowerCase().includes(term) ||
-        roleLabel(user.role).toLowerCase().includes(term) ||
         (user.phone || "").toLowerCase().includes(term)
       );
     });
@@ -108,9 +104,9 @@ export function UsersManager({
         users={filteredUsers}
         loading={loadingUsers}
         search={search}
-        isAdmin={isAdmin}
         togglingId={togglingId}
         onSearchChange={setSearch}
+        hasResetPasswordPermission={hasResetPasswordPermission}
         onToggleActive={onToggleActive}
       />
     </div>

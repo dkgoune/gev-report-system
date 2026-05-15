@@ -32,16 +32,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (result.status === "unauthorized_role") {
-      return NextResponse.json(
-        {
-          error:
-            "Accès refusé. Votre rôle actuel ne permet pas l'accès à la plateforme.",
-        },
-        { status: 403 }
-      );
-    }
-
     if (result.status === "no_agency_access") {
       return NextResponse.json(
         {
@@ -59,7 +49,7 @@ export async function POST(request: Request) {
       username: user.username,
       systemRole: user.systemRole,
       activeAgencyId: user.activeAgencyId,
-      activeMembershipRole: user.activeMembershipRole,
+      permissions: user.permissions,
     });
 
     const cookieStore = await cookies();
@@ -80,7 +70,7 @@ export async function POST(request: Request) {
         fullName: user.fullName,
         systemRole: user.systemRole,
         activeAgencyId: user.activeAgencyId,
-        activeMembershipRole: user.activeMembershipRole,
+        permissions: user.permissions,
       },
     });
   } catch {

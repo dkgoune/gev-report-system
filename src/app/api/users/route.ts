@@ -1,25 +1,22 @@
 import { NextResponse } from "next/server";
-import type { MembershipRole } from "@/generated/prisma/enums";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
-
-const ALLOWED_ROLES: MembershipRole[] = [
-  "admin",
-  "scheduler",
-  "reporter",
-  "worker",
-];
-
-function isAllowedRole(role: string): role is MembershipRole {
-  return ALLOWED_ROLES.includes(role as MembershipRole);
-}
+import { hasPermission, parseUserPermissions } from "@/lib/permissions";
 
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "user_create",
+      "user_read",
+      "user_update",
+      "user_delete"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -46,7 +43,6 @@ export async function GET() {
           agencyId: session.activeAgencyId,
         },
         select: {
-          role: true,
           isActive: true,
         },
       },
@@ -58,7 +54,6 @@ export async function GET() {
       id: user.id,
       fullName: user.fullName,
       username: user.username,
-      role: user.memberships[0]?.role ?? "worker",
       membershipActive: user.memberships[0]?.isActive ?? false,
       phone: user.phone,
       isActive: user.isActive,
@@ -71,7 +66,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(session, "user_create", "user_update", "user_delete")
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -79,31 +77,62 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Partial<{
       fullName: string;
       username: string;
-      role: string;
       phone: string;
       password: string;
       isActive: boolean;
+      permissions: string[];
     }>;
 
     const fullName = body.fullName?.trim();
     const username = body.username?.trim();
-    const role = body.role?.trim();
     const password = body.password;
     const phone = body.phone?.trim() || null;
     const isActive = body.isActive ?? true;
+    const { permissions: parsedPermissions, invalid } = parseUserPermissions(
+      body.permissions
+    );
 
-    if (!fullName || !username || !role || !password) {
+    const requestedPermissions = hasPermission(
+      session,
+      "user_manage_permissions"
+    )
+      ? parsedPermissions
+      : []; // Only consider permissions if user has management rights
+
+    if (invalid.length > 0) {
       return NextResponse.json(
         {
-          error:
-            "Nom complet, nom utilisateur, rôle et mot de passe sont obligatoires.",
+          error: "Une ou plusieurs permissions sont invalides.",
         },
         { status: 400 }
       );
     }
 
-    if (!isAllowedRole(role)) {
-      return NextResponse.json({ error: "Rôle invalide." }, { status: 400 });
+    const assignedPermissions =
+      session.systemRole === "super_admin"
+        ? requestedPermissions
+        : requestedPermissions.filter(permission =>
+            session.permissions.includes(permission)
+          );
+
+    if (assignedPermissions.length !== requestedPermissions.length) {
+      return NextResponse.json(
+        {
+          error:
+            "Vous ne pouvez attribuer que des permissions dont vous disposez.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!fullName || !username || !password) {
+      return NextResponse.json(
+        {
+          error:
+            "Nom complet, nom utilisateur et mot de passe sont obligatoires.",
+        },
+        { status: 400 }
+      );
     }
 
     if (password.length < 6) {
@@ -123,10 +152,21 @@ export async function POST(request: Request) {
         memberships: {
           create: {
             agencyId: session.activeAgencyId,
-            role,
             isActive: true,
           },
         },
+        ...(assignedPermissions.length > 0
+          ? {
+              userPermissionRules: {
+                create: assignedPermissions.map(permission => ({
+                  agencyId: session.activeAgencyId,
+                  permission,
+                  isEnabled: true,
+                  createdById: session.userId,
+                })),
+              },
+            }
+          : {}),
       },
       select: {
         id: true,
@@ -141,7 +181,6 @@ export async function POST(request: Request) {
             agencyId: session.activeAgencyId,
           },
           select: {
-            role: true,
             isActive: true,
           },
         },
@@ -155,7 +194,6 @@ export async function POST(request: Request) {
           id: user.id,
           fullName: user.fullName,
           username: user.username,
-          role: user.memberships[0]?.role ?? "worker",
           membershipActive: user.memberships[0]?.isActive ?? false,
           phone: user.phone,
           isActive: user.isActive,

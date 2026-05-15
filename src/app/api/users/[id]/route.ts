@@ -1,27 +1,18 @@
 import { NextResponse } from "next/server";
-import type { MembershipRole } from "@/generated/prisma/enums";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
-
-const ALLOWED_ROLES: MembershipRole[] = [
-  "admin",
-  "scheduler",
-  "reporter",
-  "worker",
-];
-
-function isAllowedRole(role: string): role is MembershipRole {
-  return ALLOWED_ROLES.includes(role as MembershipRole);
-}
+import { hasPermission, parseUserPermissions } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(session, "user_create", "user_update", "user_delete")
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -31,16 +22,15 @@ export async function PATCH(request: Request, { params }: Params) {
     const body = (await request.json()) as Partial<{
       fullName: string;
       username: string;
-      role: string;
       phone: string | null;
       password: string;
       isActive: boolean;
+      permissions: string[];
     }>;
 
     const payload: {
       fullName?: string;
       username?: string;
-      role?: MembershipRole;
       phone?: string | null;
       password?: string;
       isActive?: boolean;
@@ -68,14 +58,6 @@ export async function PATCH(request: Request, { params }: Params) {
       payload.username = username;
     }
 
-    if (typeof body.role === "string") {
-      const role = body.role.trim();
-      if (!isAllowedRole(role)) {
-        return NextResponse.json({ error: "Rôle invalide." }, { status: 400 });
-      }
-      payload.role = role;
-    }
-
     if (typeof body.isActive === "boolean") {
       payload.isActive = body.isActive;
     }
@@ -94,38 +76,85 @@ export async function PATCH(request: Request, { params }: Params) {
       payload.password = hashPassword(body.password);
     }
 
-    if (Object.keys(payload).length === 0) {
+    const permissionsProvided = body.permissions !== undefined;
+    const { permissions: parsedPermissions, invalid } = parseUserPermissions(
+      body.permissions
+    );
+
+    const requestedPermissions = hasPermission(
+      session,
+      "user_manage_permissions"
+    )
+      ? parsedPermissions
+      : []; // Only consider permissions if user has management rights
+
+    if (invalid.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Une ou plusieurs permissions sont invalides.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const assignedPermissions =
+      session.systemRole === "super_admin"
+        ? requestedPermissions
+        : requestedPermissions.filter(permission =>
+            session.permissions.includes(permission)
+          );
+
+    if (
+      permissionsProvided &&
+      assignedPermissions.length !== requestedPermissions.length
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Vous ne pouvez attribuer que des permissions dont vous disposez.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (Object.keys(payload).length === 0 && !permissionsProvided) {
       return NextResponse.json(
         { error: "Aucune modification détectée." },
         { status: 400 }
       );
     }
 
-    const currentUser = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
+    const currentUser = await prisma.user.findFirst({
+      where: {
+        id,
         memberships: {
-          where: {
+          some: {
             agencyId: session.activeAgencyId,
             isActive: true,
           },
-          select: {
-            id: true,
-            role: true,
-          },
         },
+      },
+      select: {
+        id: true,
+        systemRole: true,
+        isActive: true,
       },
     });
 
-    if (!currentUser || currentUser.memberships.length === 0) {
+    if (!currentUser) {
       return NextResponse.json(
         { error: "Personnel introuvable." },
         { status: 404 }
       );
     }
 
-    const membership = currentUser.memberships[0];
+    // Cannot update super admin
+    if (currentUser.systemRole === "super_admin") {
+      return NextResponse.json(
+        { error: "Impossible de mettre à jour cet utilisateur." },
+        { status: 400 }
+      );
+    }
 
     const userData: {
       fullName?: string;
@@ -141,8 +170,8 @@ export async function PATCH(request: Request, { params }: Params) {
       isActive: payload.isActive,
     };
 
-    const [updatedUser, updatedMembership] = await prisma.$transaction([
-      prisma.user.update({
+    const updatedUser = await prisma.$transaction(async tx => {
+      const updated = await tx.user.update({
         where: { id },
         data: userData,
         select: {
@@ -154,30 +183,31 @@ export async function PATCH(request: Request, { params }: Params) {
           createdAt: true,
           updatedAt: true,
         },
-      }),
-      payload.role
-        ? prisma.userAgencyMembership.update({
-            where: {
-              id: membership.id,
-            },
-            data: {
-              role: payload.role,
-            },
-            select: {
-              role: true,
-              isActive: true,
-            },
-          })
-        : prisma.userAgencyMembership.findUniqueOrThrow({
-            where: {
-              id: membership.id,
-            },
-            select: {
-              role: true,
-              isActive: true,
-            },
-          }),
-    ]);
+      });
+
+      if (permissionsProvided) {
+        await tx.userPermissionRule.deleteMany({
+          where: {
+            userId: id,
+            agencyId: session.activeAgencyId,
+          },
+        });
+
+        if (assignedPermissions.length > 0) {
+          await tx.userPermissionRule.createMany({
+            data: assignedPermissions.map(permission => ({
+              userId: id,
+              agencyId: session.activeAgencyId,
+              permission,
+              isEnabled: true,
+              createdById: session.userId,
+            })),
+          });
+        }
+      }
+
+      return updated;
+    });
 
     return NextResponse.json({
       ok: true,
@@ -185,8 +215,6 @@ export async function PATCH(request: Request, { params }: Params) {
         id: updatedUser.id,
         fullName: updatedUser.fullName,
         username: updatedUser.username,
-        role: updatedMembership.role,
-        membershipActive: updatedMembership.isActive,
         phone: updatedUser.phone,
         isActive: updatedUser.isActive,
         createdAt: updatedUser.createdAt.toISOString(),
@@ -228,7 +256,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (!session || !hasPermission(session, "user_delete")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -255,6 +283,7 @@ export async function DELETE(_request: Request, { params }: Params) {
       select: {
         id: true,
         isActive: true,
+        systemRole: true,
       },
     });
 
@@ -268,6 +297,14 @@ export async function DELETE(_request: Request, { params }: Params) {
     if (!currentUser.isActive) {
       return NextResponse.json(
         { error: "Ce personnel est déjà inactif." },
+        { status: 400 }
+      );
+    }
+
+    // Cannot delete super admin
+    if (currentUser.systemRole === "super_admin") {
+      return NextResponse.json(
+        { error: "Impossible de supprimer cet utilisateur." },
         { status: 400 }
       );
     }
@@ -288,7 +325,6 @@ export async function DELETE(_request: Request, { params }: Params) {
             agencyId: session.activeAgencyId,
           },
           select: {
-            role: true,
             isActive: true,
           },
         },
@@ -301,7 +337,6 @@ export async function DELETE(_request: Request, { params }: Params) {
         id: user.id,
         fullName: user.fullName,
         username: user.username,
-        role: user.memberships[0]?.role ?? "worker",
         membershipActive: user.memberships[0]?.isActive ?? false,
         phone: user.phone,
         isActive: user.isActive,

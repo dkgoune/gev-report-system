@@ -1,9 +1,6 @@
-import type { MembershipRole } from "@/generated/prisma/enums";
-
 export type SignatureAgentOption = {
   id: string;
   fullName: string;
-  role: MembershipRole;
   username: string;
 };
 

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { MembershipRole } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import type { ReportFieldDefinition } from "./report-general-fields";
 import {
@@ -16,7 +15,6 @@ import { ReportGeneralSection } from "./report-general-section";
 type PersonnelOption = {
   id: string;
   fullName: string;
-  role: MembershipRole;
   username: string;
 };
 

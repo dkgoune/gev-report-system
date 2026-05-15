@@ -8,6 +8,7 @@ import {
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { hasPermission } from "@/lib/permissions";
 
 type SignatureDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -20,6 +21,17 @@ export default async function SignatureDetailPage({
 
   if (!session) {
     redirect("/auth/login");
+  }
+
+  if (
+    !hasPermission(
+      session,
+      "signature_read",
+      "signature_create",
+      "signature_update"
+    )
+  ) {
+    redirect("/");
   }
 
   const { id } = await params;

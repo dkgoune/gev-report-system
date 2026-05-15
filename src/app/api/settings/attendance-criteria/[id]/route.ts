@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function DELETE(_: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (!session || !hasPermission(session, "settings_attendance_rules_delete")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -60,7 +60,7 @@ export async function DELETE(_: Request, { params }: Params) {
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (!session || !hasPermission(session, "settings_attendance_rules_update")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 

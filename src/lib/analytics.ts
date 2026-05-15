@@ -1,4 +1,3 @@
-import type { MembershipRole } from "@/generated/prisma/enums";
 import { formatRangeLabel, type AnalyticsRange } from "@/lib/analytics-range";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/session";
@@ -27,14 +26,12 @@ type ServiceBreakdownItem = {
 type TopSignerItem = {
   userId: string;
   fullName: string;
-  role: MembershipRole;
   count: number;
 };
 
 type LeaderboardItem = {
   userId: string;
   fullName: string;
-  role: MembershipRole;
   count: number;
   score: number;
 };
@@ -85,19 +82,6 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
-}
-
-function roleFromRaw(value: string | null | undefined): MembershipRole {
-  if (
-    value === "admin" ||
-    value === "scheduler" ||
-    value === "reporter" ||
-    value === "worker"
-  ) {
-    return value;
-  }
-
-  return "worker";
 }
 
 function signedEvaluationScore(score: number, impact: string): number {
@@ -275,11 +259,8 @@ export async function getAnalyticsSnapshot(
 
   const signerUserIds = signerGroups.map(item => item.userId);
   const criterionIds = criteriaRows.map(item => item.criterionId);
-  const leaderboardUserIds = Array.from(
-    new Set(evaluations.map(item => item.evaluatedUserId))
-  );
 
-  const [signerUsers, signerMemberships, criteria] = await Promise.all([
+  const [signerUsers, criteria] = await Promise.all([
     signerUserIds.length
       ? prisma.user.findMany({
           where: { id: { in: signerUserIds } },
@@ -289,23 +270,7 @@ export async function getAnalyticsSnapshot(
           },
         })
       : Promise.resolve([]),
-    signerUserIds.length || leaderboardUserIds.length
-      ? prisma.userAgencyMembership.findMany({
-          where: {
-            agencyId: session.activeAgencyId,
-            userId: {
-              in: Array.from(
-                new Set([...signerUserIds, ...leaderboardUserIds])
-              ),
-            },
-            isActive: true,
-          },
-          select: {
-            userId: true,
-            role: true,
-          },
-        })
-      : Promise.resolve([]),
+
     criterionIds.length
       ? prisma.criterion.findMany({
           where: {
@@ -320,10 +285,6 @@ export async function getAnalyticsSnapshot(
         })
       : Promise.resolve([]),
   ]);
-
-  const membershipByUserId = new Map(
-    signerMemberships.map(item => [item.userId, roleFromRaw(item.role)])
-  );
 
   const usersById = new Map(signerUsers.map(item => [item.id, item.fullName]));
   const criteriaById = new Map(criteria.map(item => [item.id, item.name]));
@@ -449,7 +410,6 @@ export async function getAnalyticsSnapshot(
     const current = leaderboardMap.get(userId) || {
       userId,
       fullName: evaluation.evaluatedUser.fullName,
-      role: membershipByUserId.get(userId) || "worker",
       count: 0,
       score: 0,
     };
@@ -462,7 +422,6 @@ export async function getAnalyticsSnapshot(
   const topSigners: TopSignerItem[] = signerGroups.map(group => ({
     userId: group.userId,
     fullName: usersById.get(group.userId) || "Utilisateur",
-    role: membershipByUserId.get(group.userId) || "worker",
     count: group._count._all,
   }));
 

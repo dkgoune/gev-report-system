@@ -8,7 +8,6 @@ import {
   TriangleAlert,
   Trophy,
 } from "lucide-react";
-import { roleLabel } from "@/components/user-management/constants";
 import { Button } from "@/components/ui/button";
 import { type AnalyticsSnapshot } from "../../lib/analytics";
 import { buildRangeSearchParams } from "@/lib/analytics-range";
@@ -251,9 +250,6 @@ export function DashboardSurface({ snapshot }: SurfaceProps) {
                     <p className="font-medium text-slate-900">
                       {item.fullName}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {roleLabel(item.role)}
-                    </p>
                   </div>
                   <p className="text-lg font-semibold text-slate-900">
                     {formatInteger(item.count)}
@@ -445,9 +441,6 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
                       <p className="font-medium text-slate-900">
                         {item.fullName}
                       </p>
-                      <p className="text-xs text-slate-500">
-                        {roleLabel(item.role)}
-                      </p>
                     </div>
                     <p className="text-lg font-semibold text-slate-900">
                       {formatInteger(item.count)}
@@ -476,9 +469,6 @@ export function AnalyticsSurface({ snapshot }: SurfaceProps) {
                     <div>
                       <p className="font-medium text-slate-900">
                         {item.fullName}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {roleLabel(item.role)} · {item.count} év.
                       </p>
                     </div>
                     <p className="text-lg font-semibold text-emerald-700">

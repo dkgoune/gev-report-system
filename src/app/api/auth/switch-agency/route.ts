@@ -37,7 +37,6 @@ export async function POST(request: Request) {
       },
       select: {
         agencyId: true,
-        role: true,
       },
     });
 
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Acces refuse." }, { status: 403 });
     }
 
-    if (session.systemRole !== "super_admin" && membership.role === "worker") {
+    if (session.systemRole !== "super_admin") {
       return NextResponse.json({ error: "Acces refuse." }, { status: 403 });
     }
 
@@ -54,7 +53,7 @@ export async function POST(request: Request) {
       username: session.username,
       systemRole: session.systemRole,
       activeAgencyId: membership.agencyId,
-      activeMembershipRole: membership.role,
+      permissions: session.permissions,
     });
 
     const cookieStore = await cookies();
@@ -69,7 +68,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       activeAgencyId: membership.agencyId,
-      activeMembershipRole: membership.role,
     });
   } catch {
     return NextResponse.json(

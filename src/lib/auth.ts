@@ -1,4 +1,4 @@
-import type { MembershipRole, SystemRole } from "@/generated/prisma/enums";
+import type { SystemRole, UserPermission } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 
@@ -12,7 +12,7 @@ export type AuthenticationResult =
         systemRole: SystemRole;
         isActive: boolean;
         activeAgencyId: string;
-        activeMembershipRole: MembershipRole;
+        permissions: UserPermission[];
       };
     }
   | { status: "invalid_credentials" }
@@ -32,9 +32,13 @@ export async function authenticateUser(username: string, password: string) {
       memberships: {
         where: { isActive: true },
         orderBy: { createdAt: "asc" },
+        select: { agencyId: true },
+      },
+      userPermissionRules: {
         select: {
           agencyId: true,
-          role: true,
+          permission: true,
+          isEnabled: true,
         },
       },
     },
@@ -45,24 +49,20 @@ export async function authenticateUser(username: string, password: string) {
   }
 
   const isValid = verifyPassword(password, user.password);
-
   if (!isValid) {
     return { status: "invalid_credentials" } satisfies AuthenticationResult;
   }
 
-  // Get the first active agency membership (preferred agency)
   const firstMembership = user.memberships[0];
   if (!firstMembership) {
     return { status: "no_agency_access" } satisfies AuthenticationResult;
   }
 
-  // Check if user can access platform with their membership role
-  const canAccess =
-    user.systemRole === "super_admin" || firstMembership.role !== "worker";
-
-  if (!canAccess) {
-    return { status: "unauthorized_role" } satisfies AuthenticationResult;
-  }
+  const permissions = user.userPermissionRules
+    .filter(
+      rule => rule.agencyId === firstMembership.agencyId && rule.isEnabled
+    )
+    .map(rule => rule.permission);
 
   return {
     status: "success",
@@ -73,7 +73,7 @@ export async function authenticateUser(username: string, password: string) {
       systemRole: user.systemRole,
       isActive: user.isActive,
       activeAgencyId: firstMembership.agencyId,
-      activeMembershipRole: firstMembership.role,
+      permissions,
     },
   } satisfies AuthenticationResult;
 }

@@ -1,5 +1,4 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import type { SessionPayload } from "@/lib/session";
 
@@ -90,9 +89,6 @@ function serializeSignatureLog(signature: {
     id: string;
     fullName: string;
     username: string;
-    memberships: Array<{
-      role: "admin" | "scheduler" | "reporter" | "worker";
-    }>;
   };
   workSchedule: {
     id: string;
@@ -111,7 +107,6 @@ function serializeSignatureLog(signature: {
     user: {
       id: signature.user.id,
       fullName: signature.user.fullName,
-      role: signature.user.memberships[0]?.role ?? "worker",
       username: signature.user.username,
     },
     workSchedule: {
@@ -159,16 +154,6 @@ async function listSignatureSchedules(session: SessionPayload) {
               id: true,
               fullName: true,
               username: true,
-              memberships: {
-                where: {
-                  agencyId: session.activeAgencyId,
-                  isActive: true,
-                },
-                take: 1,
-                select: {
-                  role: true,
-                },
-              },
             },
           },
         },
@@ -184,7 +169,6 @@ async function listSignatureSchedules(session: SessionPayload) {
         schedule.assignments.map(assignment => ({
           id: assignment.user.id,
           fullName: assignment.user.fullName,
-          role: assignment.user.memberships[0]?.role ?? "worker",
           username: assignment.user.username,
         })),
       ])
@@ -215,23 +199,12 @@ async function listSignatureAgents(session: SessionPayload) {
       id: true,
       fullName: true,
       username: true,
-      memberships: {
-        where: {
-          agencyId: session.activeAgencyId,
-          isActive: true,
-        },
-        take: 1,
-        select: {
-          role: true,
-        },
-      },
     },
   });
 
   return users.map(user => ({
     id: user.id,
     fullName: user.fullName,
-    role: user.memberships[0]?.role ?? "worker",
     username: user.username,
   }));
 }
@@ -284,25 +257,21 @@ async function validateSignaturePayload(
     throw new Error("Le signataire doit être affecté au planning sélectionné.");
   }
 
-  const isAdmin = canAccessAgencyAdminWorkspace(session);
+  const signerMembership = await prisma.userAgencyMembership.findFirst({
+    where: {
+      userId,
+      agencyId: session.activeAgencyId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
 
-  if (!isAdmin) {
-    const signerMembership = await prisma.userAgencyMembership.findFirst({
-      where: {
-        userId,
-        agencyId: session.activeAgencyId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!signerMembership) {
-      throw new Error(
-        "Le signataire sélectionné n'appartient pas à votre agence."
-      );
-    }
+  if (!signerMembership) {
+    throw new Error(
+      "Le signataire sélectionné n'appartient pas à votre agence."
+    );
   }
 
   return {
@@ -435,16 +404,6 @@ export async function listSignatureLogs(
               id: true,
               fullName: true,
               username: true,
-              memberships: {
-                where: {
-                  agencyId: session.activeAgencyId,
-                  isActive: true,
-                },
-                take: 1,
-                select: {
-                  role: true,
-                },
-              },
             },
           },
           workSchedule: {
@@ -532,16 +491,6 @@ export async function getSignatureLogById(session: SessionPayload, id: string) {
           id: true,
           fullName: true,
           username: true,
-          memberships: {
-            where: {
-              agencyId: session.activeAgencyId,
-              isActive: true,
-            },
-            take: 1,
-            select: {
-              role: true,
-            },
-          },
         },
       },
       workSchedule: {
@@ -572,7 +521,6 @@ export async function getSignatureLogById(session: SessionPayload, id: string) {
       {
         id: signature.user.id,
         fullName: signature.user.fullName,
-        role: signature.user.memberships[0]?.role ?? "worker",
         username: signature.user.username,
       },
     ];

@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { canScheduleWork } from "@/lib/authz";
 import {
   buildScheduleIncidentRequirements,
   normalizeScheduleDate,
 } from "@/lib/work-schedules";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, { params }: Params) {
   const session = await getServerSession();
 
-  if (!session || !canScheduleWork(session)) {
+  if (!session || !hasPermission(session, "work_schedule_create")) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

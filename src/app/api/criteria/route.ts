@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 const ALLOWED_IMPACTS: string[] = ["low", "high"];
 
@@ -66,7 +66,16 @@ function parseWeight(value: string | undefined) {
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "criteria_create",
+      "criteria_update",
+      "criteria_read",
+      "criteria_enable_disable"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -99,7 +108,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (!session || !hasPermission(session, "criteria_create")) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 

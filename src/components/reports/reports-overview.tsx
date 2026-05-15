@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { roleLabel } from "@/components/user-management/constants";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -38,7 +37,6 @@ export type ReportRecord = {
   reportedBy: {
     fullName: string;
     username: string;
-    role: "admin" | "scheduler" | "reporter" | "worker";
   };
   problemesRencontres: string | null;
   observationGeneral: string | null;
@@ -284,10 +282,6 @@ export function ReportsOverview({
                   <div>
                     <p className="font-medium text-slate-900">
                       {report.reportedBy.fullName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {roleLabel(report.reportedBy.role)} - @
-                      {report.reportedBy.username}
                     </p>
                   </div>
                 </TableCell>

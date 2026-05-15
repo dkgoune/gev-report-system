@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
-import { DashboardSurface } from "@/components/analytics/analytics-surfaces";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
-import { getAnalyticsSnapshot } from "../../lib/analytics";
-import { resolveAnalyticsRange } from "@/lib/analytics-range";
 import { getServerSession } from "@/lib/session";
+import UserLandingPageComponent from "@/components/layout/user-landing-page";
 
 type DashboardPageProps = {
   searchParams: Promise<{
@@ -13,21 +10,12 @@ type DashboardPageProps = {
   }>;
 };
 
-export default async function DashboardPage({
-  searchParams,
-}: DashboardPageProps) {
+export default async function DashboardPage({}: DashboardPageProps) {
   const session = await getServerSession();
 
   if (!session) {
     redirect("/auth/login");
   }
 
-  if (!canAccessAgencyAdminWorkspace(session)) {
-    redirect("/reports");
-  }
-
-  const range = resolveAnalyticsRange(await searchParams);
-  const snapshot = await getAnalyticsSnapshot(session, range);
-
-  return <DashboardSurface snapshot={snapshot} />;
+  return <UserLandingPageComponent session={session} />;
 }

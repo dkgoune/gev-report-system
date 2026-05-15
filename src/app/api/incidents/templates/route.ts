@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { IncidentTemplateVersionStatus } from "@/generated/prisma/enums";
-import { canAccessAgencyAdminWorkspace } from "@/lib/authz";
 import { sanitizeIncidentFields } from "@/lib/incident-field-schema";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 function normalizeCode(value: string) {
   return value
@@ -55,7 +55,14 @@ function serializeTemplate(template: {
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
@@ -79,7 +86,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
 
-  if (!session || !canAccessAgencyAdminWorkspace(session)) {
+  if (
+    !session ||
+    !hasPermission(
+      session,
+      "incident_binding_manage",
+      "incident_template_manage"
+    )
+  ) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 
