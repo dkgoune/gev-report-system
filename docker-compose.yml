@@ -17,6 +17,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
 
   # next.js application
   nextjs:
@@ -34,9 +36,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./public:/app/public
     expose:
       - "3000"
     networks:
@@ -44,15 +43,14 @@ services:
 
   # nginx reverse proxy
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
     container_name: nginx-proxy
     restart: always
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - nextjs
     networks:
