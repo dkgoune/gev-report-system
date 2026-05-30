@@ -122,13 +122,6 @@ enum UserPermission {
   agency_delete
 }
 
-enum PermissionWindow {
-  day
-  week
-  month
-  total
-}
-
 enum GeneralReportStatus {
   draft
   published
@@ -163,7 +156,7 @@ model Agency {
   incidentTemplates           IncidentTemplate[]
   criteria                    Criterion[]
   attendanceCriterionSettings AttendanceCriterionSetting[]
-  userPermissionRules         UserPermissionRule[]
+  roles                       Role[]
 
   @@map("agencies")
 }
@@ -198,8 +191,7 @@ model User {
 
   workScheduleAssignments    WorkScheduleAssignment[]
   signatureLogs              SignatureLog[]
-  userPermissionRules        UserPermissionRule[]     @relation("UserPermissionRules_TargetUser")
-  createdUserPermissionRules UserPermissionRule[]     @relation("UserPermissionRules_Creator")
+  createdRoles               Role[]                   @relation("CreatedRoles")
 
   @@map("users")
 }
@@ -216,6 +208,7 @@ model UserAgencyMembership {
   // Relations
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   agency Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  roles  Role[]
 
   @@unique([userId, agencyId])
   @@index([userId])
@@ -295,7 +288,6 @@ model WorkSchedule {
   generalReport        GeneralReport?
   evaluations          PersonnelEvaluation[]
   incidentEntries      GeneralReportIncidentEntry[]
-  signatureLogs        SignatureLog[]
 
   @@unique([agencyId, serviceId, workDate])
   @@index([agencyId])
@@ -532,17 +524,17 @@ model Criterion {
 
 model PersonnelEvaluation {
   id                 String   @id @default(cuid())
-  workScheduleId     String
+  workScheduleId     String?
   evaluatedUserId    String
   evaluatingLeaderId String
   criterionId        String
-  score              Int
+  score              Int      @default(0)
   comment            String?  @db.Text
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   // Relations
-  workSchedule     WorkSchedule @relation(fields: [workScheduleId], references: [id], onDelete: Cascade)
+  workSchedule     WorkSchedule? @relation(fields: [workScheduleId], references: [id], onDelete: Cascade)
   evaluatedUser    User         @relation("EvaluatedUser", fields: [evaluatedUserId], references: [id])
   evaluatingLeader User         @relation("EvaluatingLeader", fields: [evaluatingLeaderId], references: [id])
   criterion        Criterion    @relation(fields: [criterionId], references: [id])
@@ -578,40 +570,37 @@ model AttendanceCriterionSetting {
 
 model SignatureLog {
   id             String    @id @default(cuid())
-  workScheduleId String
   userId         String
-  slipNumber     String
-  signedAt       DateTime?
-  busArrivalTime DateTime?
+  signatureCount Int       @default(1)
+  signedAt       DateTime  @default(now())
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   // Relations
-  workSchedule WorkSchedule @relation(fields: [workScheduleId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id])
 
-  @@index([workScheduleId])
   @@index([userId])
   @@map("signature_logs")
 }
 
-model UserPermissionRule {
+model Role {
   id          String           @id @default(cuid())
-  userId      String
   agencyId    String
-  permission  UserPermission
-  isEnabled   Boolean          @default(true)
-  maxCount    Int?
-  window      PermissionWindow @default(total)
+  name        String
+  description String?
+  permissions UserPermission[]
+  isActive    Boolean          @default(true)
   createdById String
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  user      User   @relation("UserPermissionRules_TargetUser", fields: [userId], references: [id], onDelete: Cascade)
-  agency    Agency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  createdBy User   @relation("UserPermissionRules_Creator", fields: [createdById], references: [id])
+  // Relations
+  agency      Agency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  createdBy   User             @relation("CreatedRoles", fields: [createdById], references: [id])
+  memberships UserAgencyMembership[]
 
-  @@unique([userId, agencyId, permission])
-  @@index([agencyId, permission])
-  @@map("user_permission_rules")
+  @@unique([agencyId, name])
+  @@index([agencyId])
+  @@index([createdById])
+  @@map("roles")
 }

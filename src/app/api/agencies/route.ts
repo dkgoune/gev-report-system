@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isSuperAdmin } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 function normalizeCode(value: string) {
   return value
@@ -15,7 +16,7 @@ function normalizeCode(value: string) {
 export async function GET() {
   const session = await getServerSession();
 
-  if (!session || !isSuperAdmin(session)) {
+  if (!session || (!isSuperAdmin(session) && !hasPermission(session, "user_create", "user_update"))) {
     return NextResponse.json({ error: "Non autorise." }, { status: 401 });
   }
 

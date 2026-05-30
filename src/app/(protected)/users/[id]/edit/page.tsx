@@ -21,29 +21,23 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
 
   const { id } = await params;
 
-  const user = await prisma.user.findFirst({
-    where: {
-      id,
-      memberships: {
-        some: {
-          agencyId: session.activeAgencyId,
-          isActive: true,
-        },
-      },
-    },
+  const user = await prisma.user.findUnique({
+    where: { id },
     select: {
       id: true,
       fullName: true,
       username: true,
       phone: true,
       isActive: true,
-      userPermissionRules: {
-        where: {
-          agencyId: session.activeAgencyId,
-          isEnabled: true,
-        },
+      memberships: {
         select: {
-          permission: true,
+          agencyId: true,
+          isActive: true,
+          roles: {
+            select: {
+              id: true,
+            },
+          },
         },
       },
     },
@@ -52,6 +46,13 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
   if (!user) {
     notFound();
   }
+
+  // Format memberships for the form state
+  const formattedMemberships = user.memberships.map(m => ({
+    agencyId: m.agencyId,
+    isActive: m.isActive,
+    roleIds: m.roles.map(r => r.id),
+  }));
 
   return (
     <UserEditorForm
@@ -63,10 +64,11 @@ export default async function EditUserPage({ params }: EditUserPageProps) {
         phone: user.phone || "",
         password: "",
         isActive: user.isActive,
-        permissions: user.userPermissionRules.map(rule => rule.permission),
+        roleIds: [], // kept for type safety, but the component will use memberships
+        memberships: formattedMemberships,
       }}
-      title={`Mettre a jour ${user.fullName}`}
-      description="Modifiez les informations du personnel depuis une page dédiée."
+      title={`Mettre à jour ${user.fullName}`}
+      description="Modifiez les informations, les liaisons d'agences et les rôles du personnel depuis une page dédiée."
       canEditPermissions={hasPermission(session, "user_manage_permissions")}
     />
   );

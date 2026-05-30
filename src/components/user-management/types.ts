@@ -1,10 +1,9 @@
-import { UserPermission } from "@/generated/prisma/browser";
-
 export type UserItem = {
   id: string;
   fullName: string;
   username: string;
   membershipActive: boolean;
+  roles?: { id: string; name: string }[];
   phone: string | null;
   isActive: boolean;
   createdAt: string;
@@ -17,5 +16,18 @@ export type UserFormState = {
   phone: string;
   password: string;
   isActive: boolean;
-  permissions: UserPermission[];
+  roleIds: string[];
+  memberships?: Array<{
+    agencyId: string;
+    isActive: boolean;
+    roleIds: string[];
+  }>;
+};
+
+export type RoleItem = {
+  id: string;
+  agencyId: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
 };

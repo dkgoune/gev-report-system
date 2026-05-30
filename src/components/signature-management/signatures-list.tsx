@@ -8,11 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { SignatureLogItem, SignatureScheduleOption } from "./types";
+import type { SignatureLogItem, SignatureAgentOption } from "./types";
 import { AutoFilterForm } from "../ui/auto-filter-form";
 
 type SignaturesListProps = {
-  schedules: SignatureScheduleOption[];
+  signers: SignatureAgentOption[];
   filters: {
     endDate: string;
     page: number;
@@ -20,7 +20,6 @@ type SignaturesListProps = {
     search: string;
     startDate: string;
     userId: string;
-    workScheduleId: string;
   };
   signatures: SignatureLogItem[];
   summary: {
@@ -34,7 +33,7 @@ type SignaturesListProps = {
 };
 
 export function SignaturesList({
-  schedules,
+  signers,
   filters,
   signatures,
   summary,
@@ -53,20 +52,19 @@ export function SignaturesList({
             Signatures de bordereaux
           </h2>
           <p className="text-sm text-slate-600">
-            Suivez les signatures enregistrées, recherchez un bordereau et
-            corrigez les entrées si nécessaire.
+            Suivez les signatures enregistrées par les travailleurs et apportez des ajustements.
           </p>
         </div>
 
-        <Button asChild>
-          <Link href="/signatures/new">Ajouter une signature</Link>
+        <Button asChild className="bg-teal-600 hover:bg-teal-700">
+          <Link href="/signatures/new">Enregistrer des signatures</Link>
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Total filtré" value={String(summary.totalItems)} />
-        <SummaryCard label="Aujourd'hui" value={String(summary.todayCount)} />
-        <SummaryCard label="Ce mois-ci" value={String(summary.monthCount)} />
+        <SummaryCard label="Total des fiches" value={String(summary.totalItems)} />
+        <SummaryCard label="Signatures Aujourd'hui" value={String(summary.todayCount)} />
+        <SummaryCard label="Signatures Ce mois-ci" value={String(summary.monthCount)} />
         <SummaryCard
           label="Signataires actifs"
           value={String(summary.activeSigners)}
@@ -74,39 +72,32 @@ export function SignaturesList({
       </div>
 
       <div className="border border-slate-200 bg-slate-50 p-4">
-        <AutoFilterForm className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 items-end">
+        <AutoFilterForm className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 items-end">
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Recherche</span>
             <input
               name="q"
               defaultValue={filters.search}
-              placeholder="Rechercher par bordereau ou signataire"
+              placeholder="Rechercher par signataire..."
               className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
 
-          {schedules.length > 0 ? (
-            <label className="space-y-2 text-sm">
-              <span className="font-medium text-slate-700">Planning</span>
-              <select
-                name="workScheduleId"
-                defaultValue={filters.workScheduleId}
-                className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">Tous les plannings</option>
-                {schedules.map(schedule => (
-                  <option key={schedule.id} value={schedule.id}>
-                    {new Date(schedule.workDate).toLocaleDateString("fr-FR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}{" "}
-                    - {schedule.serviceName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <label className="space-y-2 text-sm">
+            <span className="font-medium text-slate-700">Signataire</span>
+            <select
+              name="userId"
+              defaultValue={filters.userId}
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Tous les signataires</option>
+              {signers.map(signer => (
+                <option key={signer.id} value={signer.id}>
+                  {signer.fullName}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <label className="space-y-2 text-sm">
             <span className="font-medium text-slate-700">Du</span>
@@ -137,15 +128,18 @@ export function SignaturesList({
             >
               {[10, 20, 50].map(size => (
                 <option key={size} value={size}>
-                  {size}
+                  {size} par page
                 </option>
               ))}
             </select>
           </label>
 
-          <div className="flex flex-wrap gap-2 ">
+          <div className="flex flex-wrap gap-2 lg:col-span-5 justify-end">
             <Button asChild variant="outline">
-              <Link href="/signatures">Réinitialiser</Link>
+              <Link href="/signatures">Réinitialiser les filtres</Link>
+            </Button>
+            <Button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white">
+              Filtrer
             </Button>
           </div>
         </AutoFilterForm>
@@ -154,42 +148,26 @@ export function SignaturesList({
       <div className="border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
         {totalItems === 0
           ? "Aucune signature ne correspond aux filtres actuels."
-          : `Affichage de ${startRow} à ${endRow} sur ${totalItems} signatures.`}
+          : `Affichage de ${startRow} à ${endRow} sur ${totalItems} fiches de signature.`}
       </div>
 
       <div className="overflow-hidden border border-slate-200 bg-white">
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
-          <TableHeader className="bg-slate-50 text-left text-slate-700">
+          <TableHeader className="bg-slate-50 text-left text-slate-700 font-semibold uppercase tracking-wider text-xs">
             <TableRow>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Planning
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Date et heure
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Bordereau
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Signataire
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Arrivée bus
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Saisi le
-              </TableHead>
-              <TableHead className="px-4 py-3 font-medium whitespace-nowrap">
-                Action
-              </TableHead>
+              <TableHead className="px-6 py-4">Signataire</TableHead>
+              <TableHead className="px-6 py-4 text-center">Nombre de signatures</TableHead>
+              <TableHead className="px-6 py-4">Date et heure de signature</TableHead>
+              <TableHead className="px-6 py-4">Date de saisie</TableHead>
+              <TableHead className="px-6 py-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-slate-200">
             {signatures.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
-                  className="px-4 py-8 text-center text-sm text-slate-600"
+                  colSpan={5}
+                  className="px-6 py-10 text-center text-sm text-slate-600 italic"
                 >
                   Aucune signature trouvée.
                 </TableCell>
@@ -197,46 +175,26 @@ export function SignaturesList({
             ) : null}
 
             {signatures.map(signature => (
-              <TableRow key={signature.id} className="align-top">
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {formatDate(signature.workSchedule.workDate)}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {signature.workSchedule.serviceName}
-                    </p>
-                  </div>
+              <TableRow key={signature.id} className="align-middle hover:bg-slate-50/50 transition-colors">
+                <TableCell className="px-6 py-4 font-semibold text-slate-900">
+                  {signature.user.fullName}
+                  <span className="block text-slate-400 font-mono text-[10px] mt-0.5">@{signature.user.username}</span>
                 </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  {signature.signedAt
-                    ? formatDateTime(signature.signedAt)
-                    : "Non renseignée"}
-                </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  <span className="font-medium text-slate-900">
-                    {signature.slipNumber}
+                <td className="px-6 py-4 text-center">
+                  <span className="inline-flex bg-teal-50 border border-teal-200 text-teal-800 text-xs px-2.5 py-1 font-semibold rounded-full">
+                    {signature.signatureCount} signatures
                   </span>
+                </td>
+                <TableCell className="px-6 py-4 text-slate-700">
+                  {formatDateTime(signature.signedAt)}
                 </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {signature.user.fullName}
-                    </p>
-                  </div>
-                </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                  {signature.busArrivalTime
-                    ? formatDateTime(signature.busArrivalTime)
-                    : "Non renseignée"}
-                </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                <TableCell className="px-6 py-4 text-slate-500 text-xs">
                   {formatDateTime(signature.createdAt)}
                 </TableCell>
-                <TableCell className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                <TableCell className="px-6 py-4 text-right whitespace-nowrap">
                   <Link
                     href={`/signatures/${signature.id}`}
-                    className="text-sm font-medium text-teal-700 underline-offset-4 hover:underline"
+                    className="text-sm font-semibold text-teal-600 hover:text-teal-700 underline-offset-4 hover:underline"
                   >
                     Modifier
                   </Link>
@@ -246,7 +204,7 @@ export function SignaturesList({
           </TableBody>
         </Table>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between bg-slate-50/50">
           <p className="text-sm text-slate-600">
             Page {filters.page} sur {totalPages}
           </p>
@@ -284,11 +242,11 @@ export function SignaturesList({
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <article className="border border-slate-200 bg-slate-50 p-4 py-3 flex gap-2 items-center justify-between">
+    <article className="border border-slate-200 bg-white rounded-lg shadow-sm p-4 py-3 flex gap-2 items-center justify-between">
       <span className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
         {label}
       </span>
-      <span className="font-bold">{value}</span>
+      <span className="font-bold text-slate-800 text-lg">{value}</span>
     </article>
   );
 }
@@ -300,27 +258,13 @@ function formatDateTime(value: string) {
     return value;
   }
 
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const year = date.getUTCFullYear();
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
 
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return `${day}/${month}/${year} à ${hours}:${minutes}`;
 }
 
 function buildPageHref(filters: SignaturesListProps["filters"], page: number) {
@@ -328,10 +272,6 @@ function buildPageHref(filters: SignaturesListProps["filters"], page: number) {
 
   if (filters.search) {
     params.set("q", filters.search);
-  }
-
-  if (filters.workScheduleId) {
-    params.set("workScheduleId", filters.workScheduleId);
   }
 
   if (filters.userId) {

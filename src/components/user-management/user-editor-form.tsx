@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import type { UserPermission } from "@/generated/prisma/browser";
-import { allPermissions } from "@/lib/permissions";
-import type { UserFormState } from "./types";
+import type { UserFormState, RoleItem } from "./types";
 
 type UserEditorFormProps = {
   mode: "create" | "update";
@@ -24,71 +22,90 @@ export function UserEditorForm({
   userId,
   title,
   description,
-  canEditPermissions = false,
 }: UserEditorFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<UserFormState>(initialState);
+  const [agencies, setAgencies] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [availableRoles, setAvailableRoles] = useState<RoleItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const permissionGroups = useMemo(() => {
-    const groups: {
-      key: string;
-      title: string;
-      items: { value: UserPermission; label: string }[];
-    }[] = [
-      { key: "dashboard", title: "Tableau de bord", items: [] },
-      { key: "user", title: "Personnel", items: [] },
-      { key: "service", title: "Services", items: [] },
-      { key: "post", title: "Postes", items: [] },
-      { key: "work_schedule", title: "Plannings", items: [] },
-      { key: "report", title: "Rapports", items: [] },
-      { key: "incident", title: "Incidents", items: [] },
-      { key: "criteria", title: "Critères", items: [] },
-      { key: "evaluation", title: "Évaluations", items: [] },
-      { key: "signature", title: "Signatures", items: [] },
-      { key: "settings", title: "Paramètres", items: [] },
-      { key: "agency", title: "Agences", items: [] },
-      { key: "other", title: "Autres", items: [] },
-    ];
+  useEffect(() => {
+    // 1. Fetch all agencies
+    fetch("/api/agencies")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.agencies) {
+          setAgencies(data.agencies.filter((a: { id: string; name: string; code: string; isActive: boolean }) => a.isActive));
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching agencies:", err);
+      });
 
-    const getKey = (permission: UserPermission): string => {
-      if (permission.startsWith("work_schedule_")) {
-        return "work_schedule";
-      }
-
-      return permission.split("_")[0] || "other";
-    };
-
-    for (const permission of allPermissions) {
-      const key = getKey(permission.value);
-      const group = groups.find(entry => entry.key === key);
-
-      if (group) {
-        group.items.push(permission);
-      } else {
-        groups.find(entry => entry.key === "other")?.items.push(permission);
-      }
-    }
-
-    return groups.filter(group => group.items.length > 0);
+    // 2. Fetch all roles
+    fetch("/api/roles?all=true")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.roles) {
+          setAvailableRoles(data.roles);
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching roles:", err);
+      });
   }, []);
 
-  function togglePermission(permission: UserPermission) {
+  const memberships = formState.memberships || [];
+
+  function isMemberOf(agencyId: string) {
+    return memberships.some(m => m.agencyId === agencyId);
+  }
+
+  function toggleMembership(agencyId: string) {
     setFormState(current => {
-      const hasPermission = current.permissions.includes(permission);
-      const nextPermissions = hasPermission
-        ? current.permissions.filter(item => item !== permission)
-        : [...current.permissions, permission];
+      const currentMemberships = current.memberships || [];
+      const exists = currentMemberships.some(m => m.agencyId === agencyId);
+      
+      const nextMemberships = exists
+        ? currentMemberships.filter(m => m.agencyId !== agencyId)
+        : [...currentMemberships, { agencyId, isActive: true, roleIds: [] }];
 
       return {
         ...current,
-        permissions: nextPermissions,
+        memberships: nextMemberships,
+      };
+    });
+  }
+
+  function toggleRoleForAgency(agencyId: string, roleId: string) {
+    setFormState(current => {
+      const currentMemberships = current.memberships || [];
+      const nextMemberships = currentMemberships.map(m => {
+        if (m.agencyId === agencyId) {
+          const hasRole = m.roleIds.includes(roleId);
+          const nextRoleIds = hasRole
+            ? m.roleIds.filter(id => id !== roleId)
+            : [...m.roleIds, roleId];
+          return { ...m, roleIds: nextRoleIds };
+        }
+        return m;
+      });
+
+      return {
+        ...current,
+        memberships: nextMemberships,
       };
     });
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (memberships.length === 0) {
+      toast.error("Veuillez lier cet utilisateur à au moins une agence.");
+      return;
+    }
+
     setSubmitting(true);
 
     const endpoint = mode === "create" ? "/api/users" : `/api/users/${userId}`;
@@ -97,14 +114,14 @@ export function UserEditorForm({
       mode === "create"
         ? {
             ...formState,
-            permissions: formState.permissions,
+            memberships: formState.memberships,
           }
         : {
             fullName: formState.fullName,
             username: formState.username,
             phone: formState.phone || null,
             isActive: formState.isActive,
-            permissions: formState.permissions,
+            memberships: formState.memberships,
           };
 
     const response = await fetch(endpoint, {
@@ -131,7 +148,7 @@ export function UserEditorForm({
     toast.success(
       mode === "create"
         ? "Personnel créé avec succès."
-        : "Personnel mis à jour."
+        : "Personnel mis à jour avec succès."
     );
 
     setSubmitting(false);
@@ -148,7 +165,7 @@ export function UserEditorForm({
         </div>
 
         <Button asChild variant="outline">
-          <Link href="/users">Retour a la liste</Link>
+          <Link href="/users">Retour à la liste</Link>
         </Button>
       </div>
 
@@ -164,13 +181,13 @@ export function UserEditorForm({
                   fullName: event.target.value,
                 }))
               }
-              className="w-full border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2 bg-white"
               required
             />
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-700">Nom utilisateur</span>
+            <span className="font-medium text-slate-700">Nom d'utilisateur</span>
             <input
               value={formState.username}
               onChange={event =>
@@ -179,7 +196,7 @@ export function UserEditorForm({
                   username: event.target.value,
                 }))
               }
-              className="w-full border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2 bg-white"
               required
             />
           </label>
@@ -194,7 +211,7 @@ export function UserEditorForm({
                   phone: event.target.value,
                 }))
               }
-              className="w-full border border-slate-300 px-3 py-2"
+              className="w-full border border-slate-300 px-3 py-2 bg-white"
             />
           </label>
 
@@ -210,14 +227,14 @@ export function UserEditorForm({
                     password: event.target.value,
                   }))
                 }
-                className="w-full border border-slate-300 px-3 py-2"
+                className="w-full border border-slate-300 px-3 py-2 bg-white"
                 minLength={6}
                 required
               />
             </label>
           ) : null}
 
-          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm">
+          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm bg-white cursor-pointer select-none">
             <input
               type="checkbox"
               checked={formState.isActive}
@@ -231,82 +248,101 @@ export function UserEditorForm({
             <span>Compte actif</span>
           </label>
 
-          <section className="space-y-3 border border-slate-300 bg-white p-3 md:col-span-2">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Permissions utilisateur
-                </h3>
-                <p className="text-xs text-slate-600">
-                  Sélectionnez les droits accordés a ce personnel.
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                {/* <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setFormState(current => ({
-                      ...current,
-                      permissions: allPermissions.map(item => item.value),
-                    }))
-                  }
-                >
-                  Tout sélectionner
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setFormState(current => ({
-                      ...current,
-                      permissions: [],
-                    }))
-                  }
-                >
-                  Tout retirer
-                </Button> */}
-              </div>
+          <section className="space-y-6 border border-slate-300 bg-white p-6 md:col-span-2">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2">
+                Rôles & Affectations aux Agences
+              </h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Gérez les liaisons de ce personnel avec les différentes agences et attribuez leurs rôles respectifs.
+              </p>
             </div>
 
-            {canEditPermissions && (
-              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {permissionGroups.map(group => (
-                  <fieldset
-                    key={group.key}
-                    className="space-y-2 border border-slate-200 bg-slate-50 p-3"
-                  >
-                    <legend className="px-1 text-xs font-semibold tracking-wide text-slate-600 uppercase">
-                      {group.title}
-                    </legend>
+            <div className="space-y-6">
+              {agencies.map(agency => {
+                const isLinked = isMemberOf(agency.id);
+                const agencyMembership = memberships.find(m => m.agencyId === agency.id);
+                const agencyRoles = availableRoles.filter(r => r.agencyId === agency.id);
 
-                    <div className="grid gap-2">
-                      {group.items.map(permission => (
+                return (
+                  <div
+                    key={agency.id}
+                    className={`border p-4 transition-all rounded-lg ${
+                      isLinked ? "border-teal-200 bg-teal-50/20" : "border-slate-200 bg-slate-50/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`agency-${agency.id}`}
+                          checked={isLinked}
+                          onChange={() => toggleMembership(agency.id)}
+                          className="size-4 text-teal-600 accent-teal-600 cursor-pointer"
+                        />
                         <label
-                          key={permission.value}
-                          className="flex items-start gap-2 text-sm"
+                          htmlFor={`agency-${agency.id}`}
+                          className="text-base font-bold text-slate-800 cursor-pointer hover:text-teal-700 select-none"
                         >
-                          <input
-                            type="checkbox"
-                            checked={formState.permissions.includes(
-                              permission.value
-                            )}
-                            onChange={() => togglePermission(permission.value)}
-                            className="mt-0.5"
-                          />
-                          <span className="text-slate-700">
-                            {permission.label}
-                          </span>
+                          {agency.name} <span className="text-xs text-slate-500 font-normal">({agency.code})</span>
                         </label>
-                      ))}
+                      </div>
+                      
+                      {isLinked && (
+                        <span className="inline-flex bg-teal-100 text-teal-800 text-xs px-2.5 py-1 font-semibold rounded-full border border-teal-200">
+                          Membre actif
+                        </span>
+                      )}
                     </div>
-                  </fieldset>
-                ))}
-              </div>
-            )}
+
+                    {isLinked && (
+                      <div className="mt-4 pt-4 border-t border-slate-200/60">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                          Sélectionnez les rôles pour {agency.name} :
+                        </p>
+                        
+                        {agencyRoles.length === 0 ? (
+                          <p className="text-sm text-slate-500 italic">
+                            Aucun rôle configuré pour cette agence.
+                          </p>
+                        ) : (
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {agencyRoles.map(role => {
+                              const hasRole = agencyMembership?.roleIds.includes(role.id) ?? false;
+                              return (
+                                <label
+                                  key={role.id}
+                                  className={`flex items-start gap-3 border p-3 hover:bg-slate-50 cursor-pointer rounded-lg transition-colors ${
+                                    hasRole ? "border-teal-300 bg-white" : "border-slate-200 bg-white/60"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={hasRole}
+                                    onChange={() => toggleRoleForAgency(agency.id, role.id)}
+                                    className="mt-1 accent-teal-600"
+                                  />
+                                  <div>
+                                    <span className="block font-semibold text-slate-800 text-sm">
+                                      {role.name}
+                                    </span>
+                                    {role.description && (
+                                      <span className="block text-slate-500 text-xs mt-0.5 leading-relaxed">
+                                        {role.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           <div className="flex flex-wrap gap-2 md:col-span-2">
@@ -317,7 +353,7 @@ export function UserEditorForm({
                   : "Enregistrement..."
                 : mode === "create"
                   ? "Créer le personnel"
-                  : "Mettre a jour le personnel"}
+                  : "Mettre à jour le personnel"}
             </Button>
             <Button asChild variant="outline" disabled={submitting}>
               <Link href="/users">Annuler</Link>

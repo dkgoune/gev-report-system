@@ -41,14 +41,6 @@ function normalizeImpact(value: string, score: number): NormalizedImpact {
   return score < 0 ? "NEGATIVE" : "POSITIVE";
 }
 
-function toSignedScore(score: number, impact: NormalizedImpact): number {
-  if (score < 0) {
-    return score;
-  }
-
-  return impact === "NEGATIVE" ? -score : score;
-}
-
 function safeAverage(total: number, count: number): number {
   if (count <= 0) {
     return 0;
@@ -67,12 +59,12 @@ export async function getEvaluationsAnalyticsSnapshot(
 ): Promise<EvaluationsAnalyticsSnapshot> {
   const evaluations = await prisma.personnelEvaluation.findMany({
     where: {
-      workSchedule: {
+      criterion: {
         agencyId: session.activeAgencyId,
-        workDate: {
-          gte: range.fromDate,
-          lte: range.toDate,
-        },
+      },
+      createdAt: {
+        gte: range.fromDate,
+        lte: range.toDate,
       },
     },
     select: {
@@ -81,6 +73,7 @@ export async function getEvaluationsAnalyticsSnapshot(
       criterionId: true,
       evaluatedUserId: true,
       evaluatingLeaderId: true,
+      createdAt: true,
       criterion: {
         select: {
           name: true,
@@ -108,23 +101,11 @@ export async function getEvaluationsAnalyticsSnapshot(
               name: true,
             },
           },
-          assignments: {
-            select: {
-              userId: true,
-              post: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
         },
       },
     },
     orderBy: {
-      workSchedule: {
-        workDate: "asc",
-      },
+      createdAt: "asc",
     },
   });
 
@@ -133,29 +114,24 @@ export async function getEvaluationsAnalyticsSnapshot(
       evaluation.criterion.impact,
       evaluation.score
     );
-    const signedScore = toSignedScore(evaluation.score, impact);
-    const assignments = evaluation.workSchedule.assignments;
+    // Decoupled from scores: Positive yields +1, Negative yields -1
+    const signedScore = impact === "NEGATIVE" ? -1 : 1;
 
-    const workerAssignment = assignments.find(
-      assignment => assignment.userId === evaluation.evaluatedUserId
-    );
-
-    const serviceName = evaluation.workSchedule.service.name;
-    const fallbackGroupName = serviceName || "Sans groupe";
+    const serviceName = evaluation.workSchedule?.service.name || "Général";
+    const date = toDateOnly(evaluation.createdAt);
 
     return {
       criterionId: evaluation.criterionId,
       criterionImpact: impact,
       criterionName: evaluation.criterion.name,
-      date: toDateOnly(evaluation.workSchedule.workDate),
+      date,
       score: evaluation.score,
       signedScore,
       serviceName,
       worker: {
         userId: evaluation.evaluatedUser.id,
         fullName: evaluation.evaluatedUser.fullName,
-
-        groupName: workerAssignment?.post.name || fallbackGroupName,
+        groupName: "Agent",
       },
       evaluator: {
         userId: evaluation.evaluatingLeader.id,

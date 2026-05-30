@@ -56,8 +56,8 @@ export async function POST(request: Request) {
     cookieStore.set(getSessionCookieName(), token, {
       httpOnly: true,
       sameSite: "lax",
+      secure: false,
       // secure: process.env.NODE_ENV === "production",
-      secure: false, // For development, set to false. Remember to change to true in production.
       path: "/",
       maxAge: getSessionTtlSeconds(),
     });
@@ -73,7 +73,8 @@ export async function POST(request: Request) {
         permissions: user.permissions,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "Charge utile de requête invalide." },
       { status: 400 }

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { scryptSync } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../../src/generated/prisma/client";
+import { UserPermission } from "../../src/generated/prisma/enums";
 import {
   getSeedUsers,
   SEED_AGENCIES,
@@ -119,6 +120,7 @@ export async function runSeed() {
     await prisma.workPost.deleteMany();
     await prisma.serviceDefinition.deleteMany();
     await prisma.userAgencyMembership.deleteMany();
+    await prisma.role.deleteMany();
     await prisma.agency.deleteMany();
     await prisma.user.deleteMany();
 
@@ -137,6 +139,8 @@ export async function runSeed() {
       userIdsByKey.set(user.key, createdUser.id);
     }
 
+    const rolesByAgencyAndName = new Map<string, string>(); // "agencyId_roleName" -> roleId
+
     for (const agency of SEED_AGENCIES) {
       const createdAgency = await prisma.agency.create({
         data: {
@@ -147,19 +151,107 @@ export async function runSeed() {
       });
 
       agencyIdsByKey.set(agency.key, createdAgency.id);
+
+      // Create standard roles for this agency
+      const adminRole = await prisma.role.create({
+        data: {
+          agencyId: createdAgency.id,
+          name: "Administrateur",
+          description: "Accès complet aux ressources de l'agence",
+          permissions: Object.values(UserPermission),
+          createdById: getRequiredId(userIdsByKey, "root", "role creator"),
+        },
+      });
+      rolesByAgencyAndName.set(`${createdAgency.id}_Administrateur`, adminRole.id);
+
+      const schedulerRole = await prisma.role.create({
+        data: {
+          agencyId: createdAgency.id,
+          name: "Planificateur",
+          description: "Gère les plannings et les services",
+          permissions: [
+            "dashboard_view",
+            "work_schedule_create",
+            "work_schedule_read",
+            "work_schedule_update",
+            "work_schedule_delete",
+            "work_schedule_publish",
+            "work_schedule_print",
+            "service_read",
+            "post_read",
+          ],
+          createdById: getRequiredId(userIdsByKey, "root", "role creator"),
+        },
+      });
+      rolesByAgencyAndName.set(`${createdAgency.id}_Planificateur`, schedulerRole.id);
+
+      const reporterRole = await prisma.role.create({
+        data: {
+          agencyId: createdAgency.id,
+          name: "Rapporteur",
+          description: "Rédige et consulte les rapports",
+          permissions: [
+            "dashboard_view",
+            "report_create",
+            "report_read",
+            "report_update",
+            "report_mark_read",
+          ],
+          createdById: getRequiredId(userIdsByKey, "root", "role creator"),
+        },
+      });
+      rolesByAgencyAndName.set(`${createdAgency.id}_Rapporteur`, reporterRole.id);
+
+      const agentRole = await prisma.role.create({
+        data: {
+          agencyId: createdAgency.id,
+          name: "Agent de terrain",
+          description: "Accès standard pour signer les feuilles",
+          permissions: [
+            "dashboard_view",
+            "signature_create",
+            "signature_read",
+          ],
+          createdById: getRequiredId(userIdsByKey, "root", "role creator"),
+        },
+      });
+      rolesByAgencyAndName.set(`${createdAgency.id}_Agent`, agentRole.id);
     }
 
     for (const user of userDefinitions) {
       for (const membership of user.memberships) {
+        const userId = getRequiredId(userIdsByKey, user.key, "membership user");
+        const agencyId = getRequiredId(
+          agencyIdsByKey,
+          membership.agencyKey,
+          "membership agency"
+        );
+
+        // Determine role name based on username
+        let roleName = "Agent";
+        if (user.username.includes("admin")) {
+          roleName = "Administrateur";
+        } else if (user.username.includes("scheduler")) {
+          roleName = "Planificateur";
+        } else if (user.username.includes("reporter")) {
+          roleName = "Rapporteur";
+        }
+
+        const roleId = rolesByAgencyAndName.get(`${agencyId}_${roleName}`);
+        if (!roleId) {
+          throw new Error(
+            `Role not found for agency ${agencyId} and name ${roleName}`
+          );
+        }
+
         await prisma.userAgencyMembership.create({
           data: {
-            userId: getRequiredId(userIdsByKey, user.key, "membership user"),
-            agencyId: getRequiredId(
-              agencyIdsByKey,
-              membership.agencyKey,
-              "membership agency"
-            ),
+            userId,
+            agencyId,
             isActive: membership.isActive,
+            roles: {
+              connect: { id: roleId },
+            },
           },
         });
       }
@@ -569,19 +661,13 @@ export async function runSeed() {
     for (const log of SEED_SIGNATURE_LOGS) {
       await prisma.signatureLog.create({
         data: {
-          workScheduleId: getRequiredId(
-            workScheduleIdsByKey,
-            log.workScheduleKey,
-            "signature log schedule"
-          ),
           userId: getRequiredId(
             userIdsByKey,
             log.userKey,
             "signature log user"
           ),
-          slipNumber: log.slipNumber,
-          signedAt: toDateTime(log.signedAt),
-          busArrivalTime: toDateTime(log.busArrivalTime),
+          signatureCount: 1,
+          signedAt: toDateTime(log.signedAt) || new Date(),
         },
       });
     }

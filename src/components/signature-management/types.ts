@@ -4,26 +4,16 @@ export type SignatureAgentOption = {
   username: string;
 };
 
-export type SignatureScheduleOption = {
-  id: string;
-  serviceName: string;
-  workDate: string;
-};
-
 export type SignatureLogItem = {
-  busArrivalTime: string | null;
   createdAt: string;
   id: string;
-  signedAt: string | null;
-  slipNumber: string;
+  signedAt: string;
+  signatureCount: number;
   user: SignatureAgentOption;
-  workSchedule: SignatureScheduleOption;
 };
 
 export type SignatureFormState = {
-  busArrivalTime: string;
-  signedAt: string;
-  slipNumber: string;
   userId: string;
-  workScheduleId: string;
+  signatureCount: number;
+  signedAt: string;
 };

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
-
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { buildScopedUserWhere, listScopedUsers } from "@/lib/user-scope";
@@ -33,24 +32,26 @@ export async function GET(request: Request) {
   const session = await getServerSession();
 
   if (!session || !hasPermission(session, "evaluation_read")) {
-    return NextResponse.json({ error: "Non autorise." }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
   const search = (searchParams.get("q") || "").trim();
   const criteriaId = (searchParams.get("criteriaId") || "").trim();
-  const workScheduleId = (searchParams.get("workScheduleId") || "").trim();
   const startDate = normalizeDateInput(searchParams.get("from"));
   const endDate = normalizeDateInput(searchParams.get("to"));
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
+  const createdAtFilter: Prisma.DateTimeFilter = {
+    ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
+    ...(endDate ? { lte: new Date(`${endDate}T23:59:59.999Z`) } : {}),
+  };
+
   const where: Prisma.PersonnelEvaluationWhereInput = {
-    workSchedule: {
+    criterion: {
       agencyId: session.activeAgencyId,
     },
-  };
-  const workScheduleWhere: Prisma.WorkScheduleWhereInput = {
-    agencyId: session.activeAgencyId,
+    ...(startDate || endDate ? { createdAt: createdAtFilter } : {}),
   };
 
   if (search) {
@@ -65,11 +66,6 @@ export async function GET(request: Request) {
         },
       },
       { comment: { contains: search, mode: "insensitive" } },
-      {
-        workSchedule: {
-          service: { name: { contains: search, mode: "insensitive" } },
-        },
-      },
     ];
   }
 
@@ -77,31 +73,7 @@ export async function GET(request: Request) {
     where.criterionId = criteriaId;
   }
 
-  if (workScheduleId) {
-    where.workScheduleId = workScheduleId;
-  }
-
-  if (startDate || endDate) {
-    workScheduleWhere.workDate = {};
-
-    if (startDate) {
-      workScheduleWhere.workDate = {
-        ...(workScheduleWhere.workDate as Prisma.DateTimeFilter<"WorkSchedule">),
-        gte: new Date(`${startDate}T00:00:00.000Z`),
-      };
-    }
-
-    if (endDate) {
-      workScheduleWhere.workDate = {
-        ...(workScheduleWhere.workDate as Prisma.DateTimeFilter<"WorkSchedule">),
-        lte: new Date(`${endDate}T00:00:00.000Z`),
-      };
-    }
-
-    where.workSchedule = workScheduleWhere;
-  }
-
-  const [totalItems, users, criteria, schedules] = await Promise.all([
+  const [totalItems, users, criteria] = await Promise.all([
     prisma.personnelEvaluation.count({ where }),
     listScopedUsers(session),
     prisma.criterion.findMany({
@@ -117,23 +89,6 @@ export async function GET(request: Request) {
         maxDaily: true,
       },
     }),
-    prisma.workSchedule.findMany({
-      where: {
-        agencyId: session.activeAgencyId,
-        status: "published",
-      },
-      orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
-      take: 100,
-      select: {
-        id: true,
-        workDate: true,
-        service: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    }),
   ]);
 
   const totalPages = Math.max(Math.ceil(totalItems / pageSize), 1);
@@ -146,7 +101,6 @@ export async function GET(request: Request) {
     take: pageSize,
     select: {
       id: true,
-      score: true,
       comment: true,
       createdAt: true,
       updatedAt: true,
@@ -172,40 +126,20 @@ export async function GET(request: Request) {
           username: true,
         },
       },
-      workSchedule: {
-        select: {
-          id: true,
-          workDate: true,
-          service: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
     },
   });
 
   return NextResponse.json({
     users,
     criteria,
-    schedules: schedules.map(schedule => ({
-      ...schedule,
-      workDate: schedule.workDate.toISOString(),
-    })),
     evaluations: evaluations.map(evaluation => ({
       id: evaluation.id,
-      score: evaluation.score,
       comment: evaluation.comment,
       createdAt: evaluation.createdAt.toISOString(),
       updatedAt: evaluation.updatedAt.toISOString(),
       evaluatedUser: evaluation.evaluatedUser,
       criterion: evaluation.criterion,
       evaluatingLeader: evaluation.evaluatingLeader,
-      workSchedule: {
-        ...evaluation.workSchedule,
-        workDate: evaluation.workSchedule.workDate.toISOString(),
-      },
     })),
     pagination: {
       page,
@@ -215,7 +149,6 @@ export async function GET(request: Request) {
     },
     filters: {
       criteriaId,
-      workScheduleId,
       endDate,
       search,
       startDate,
@@ -227,41 +160,30 @@ export async function POST(request: Request) {
   const session = await getServerSession();
 
   if (!session || !hasPermission(session, "evaluation_create")) {
-    return NextResponse.json({ error: "Non autorise." }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
   try {
     const body = (await request.json()) as Partial<{
       evaluatedUserId: string;
       criterionId: string;
-      workScheduleId: string;
-      score: number | string;
       comment: string;
     }>;
 
     const evaluatedUserId = body.evaluatedUserId?.trim();
     const criterionId = body.criterionId?.trim();
-    const workScheduleId = body.workScheduleId?.trim();
     const comment = body.comment?.trim() || null;
-    const score = Number(body.score);
 
-    if (!evaluatedUserId || !criterionId || !workScheduleId) {
+    if (!evaluatedUserId || !criterionId || !comment) {
       return NextResponse.json(
         {
-          error: "Le personnel, le critere et le planning sont obligatoires.",
+          error: "Le personnel, le critère et l'observation/note sont obligatoires.",
         },
         { status: 400 }
       );
     }
 
-    if (!Number.isInteger(score) || score < 0) {
-      return NextResponse.json(
-        { error: "Le score doit etre un entier positif." },
-        { status: 400 }
-      );
-    }
-
-    const [evaluatedUser, criterion, workSchedule] = await Promise.all([
+    const [evaluatedUser, criterion] = await Promise.all([
       prisma.user.findFirst({
         where: {
           ...buildScopedUserWhere(session),
@@ -283,76 +205,34 @@ export async function POST(request: Request) {
           maxDaily: true,
         },
       }),
-      prisma.workSchedule.findFirst({
-        where: {
-          id: workScheduleId,
-          agencyId: session.activeAgencyId,
-        },
-        select: {
-          id: true,
-          workDate: true,
-          status: true,
-          assignments: {
-            where: {
-              userId: evaluatedUserId,
-            },
-            select: {
-              id: true,
-            },
-          },
-        },
-      }),
     ]);
 
     if (!evaluatedUser || !evaluatedUser.isActive) {
       return NextResponse.json(
-        { error: "Le personnel selectionne est introuvable ou inactif." },
+        { error: "Le personnel sélectionné est introuvable ou inactif." },
         { status: 400 }
       );
     }
 
     if (!criterion || !criterion.isActive) {
       return NextResponse.json(
-        { error: "Le critere selectionne est introuvable ou inactif." },
-        { status: 400 }
-      );
-    }
-
-    if (!workSchedule) {
-      return NextResponse.json(
-        { error: "Le planning selectionne est introuvable." },
-        { status: 400 }
-      );
-    }
-
-    if (workSchedule.status === "archived") {
-      return NextResponse.json(
-        {
-          error:
-            "Ce planning est archive et ne peut plus recevoir d'evaluation.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!workSchedule.assignments.length) {
-      return NextResponse.json(
-        {
-          error:
-            "Le personnel selectionne n'est pas assigne a ce planning pour cette agence.",
-        },
+        { error: "Le critère sélectionné est introuvable ou inactif." },
         { status: 400 }
       );
     }
 
     if (criterion.maxDaily !== null) {
+      const now = new Date();
+      const todayStart = new Date(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
+      const todayEnd = new Date(`${now.toISOString().slice(0, 10)}T23:59:59.999Z`);
+
       const sameDayCount = await prisma.personnelEvaluation.count({
         where: {
           evaluatedUserId,
           criterionId,
-          workSchedule: {
-            agencyId: session.activeAgencyId,
-            workDate: workSchedule.workDate,
+          createdAt: {
+            gte: todayStart,
+            lte: todayEnd,
           },
         },
       });
@@ -362,23 +242,21 @@ export async function POST(request: Request) {
           ok: true,
           skipped: true,
           message:
-            "La limite quotidienne de ce critere est deja atteinte pour ce personnel.",
+            "La limite quotidienne de ce critère est déjà atteinte pour ce personnel.",
         });
       }
     }
 
     const evaluation = await prisma.personnelEvaluation.create({
       data: {
-        workScheduleId,
         evaluatedUserId,
         evaluatingLeaderId: session.userId,
         criterionId,
-        score,
+        score: 0,
         comment,
       },
       select: {
         id: true,
-        score: true,
         comment: true,
         createdAt: true,
         updatedAt: true,
@@ -389,7 +267,7 @@ export async function POST(request: Request) {
       {
         ok: true,
         skipped: false,
-        message: "Evaluation enregistree.",
+        message: "Évaluation enregistrée.",
         evaluation: {
           ...evaluation,
           createdAt: evaluation.createdAt.toISOString(),
@@ -398,9 +276,10 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch {
+  } catch (error) {
+    console.error("Error creating evaluation:", error);
     return NextResponse.json(
-      { error: "Impossible d'enregistrer l'evaluation." },
+      { error: "Impossible d'enregistrer l'évaluation." },
       { status: 500 }
     );
   }

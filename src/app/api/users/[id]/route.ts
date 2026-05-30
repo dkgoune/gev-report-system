@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
-import { hasPermission, parseUserPermissions } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -25,7 +25,11 @@ export async function PATCH(request: Request, { params }: Params) {
       phone: string | null;
       password: string;
       isActive: boolean;
-      permissions: string[];
+      memberships: Array<{
+        agencyId: string;
+        isActive: boolean;
+        roleIds: string[];
+      }>;
     }>;
 
     const payload: {
@@ -76,53 +80,8 @@ export async function PATCH(request: Request, { params }: Params) {
       payload.password = hashPassword(body.password);
     }
 
-    const permissionsProvided = body.permissions !== undefined;
-    const { permissions: parsedPermissions, invalid } = parseUserPermissions(
-      body.permissions
-    );
-
-    const requestedPermissions = hasPermission(
-      session,
-      "user_manage_permissions"
-    )
-      ? parsedPermissions
-      : []; // Only consider permissions if user has management rights
-
-    if (invalid.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Une ou plusieurs permissions sont invalides.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const assignedPermissions =
-      session.systemRole === "super_admin"
-        ? requestedPermissions
-        : requestedPermissions.filter(permission =>
-            session.permissions.includes(permission)
-          );
-
-    if (
-      permissionsProvided &&
-      assignedPermissions.length !== requestedPermissions.length
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Vous ne pouvez attribuer que des permissions dont vous disposez.",
-        },
-        { status: 403 }
-      );
-    }
-
-    if (Object.keys(payload).length === 0 && !permissionsProvided) {
-      return NextResponse.json(
-        { error: "Aucune modification détectée." },
-        { status: 400 }
-      );
-    }
+    const membershipsProvided = body.memberships !== undefined;
+    const membershipsInput = body.memberships || [];
 
     const currentUser = await prisma.user.findFirst({
       where: {
@@ -185,23 +144,23 @@ export async function PATCH(request: Request, { params }: Params) {
         },
       });
 
-      if (permissionsProvided) {
-        await tx.userPermissionRule.deleteMany({
-          where: {
-            userId: id,
-            agencyId: session.activeAgencyId,
-          },
+      if (membershipsProvided) {
+        // Delete all current memberships for this user
+        await tx.userAgencyMembership.deleteMany({
+          where: { userId: id },
         });
 
-        if (assignedPermissions.length > 0) {
-          await tx.userPermissionRule.createMany({
-            data: assignedPermissions.map(permission => ({
+        // Recreate memberships with their correct roles
+        for (const m of membershipsInput) {
+          await tx.userAgencyMembership.create({
+            data: {
               userId: id,
-              agencyId: session.activeAgencyId,
-              permission,
-              isEnabled: true,
-              createdById: session.userId,
-            })),
+              agencyId: m.agencyId,
+              isActive: m.isActive,
+              roles: {
+                connect: (m.roleIds || []).map(roleId => ({ id: roleId })),
+              },
+            },
           });
         }
       }

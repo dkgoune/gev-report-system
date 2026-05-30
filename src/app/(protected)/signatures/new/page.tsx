@@ -22,27 +22,19 @@ export default async function NewSignaturePage() {
   const payload = await getSignatureLogFormOptions(session);
   const initialState = getDefaultSignatureFormState() as SignatureFormState;
 
-  if (!initialState.workScheduleId && payload.schedules.length > 0) {
-    initialState.workScheduleId = payload.schedules[0].id;
-  }
-
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">
-          Ajouter une signature de bordereau
+          Enregistrer des signatures
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Sélectionnez le planning, puis le signataire affecté, saisissez le
-          numéro de bordereau, la date de signature si elle est connue et, si
-          besoin, l'arrivée du bus.
+          Enregistrez le nombre exact de signatures de bordereaux effectuées par un travailleur sur une date et heure spécifique.
         </p>
       </div>
 
       <SignatureForm
-        schedules={payload.schedules}
         signers={payload.signers}
-        signersBySchedule={payload.signersBySchedule}
         initialState={initialState}
         mode="create"
       />

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { scryptSync } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../../src/generated/prisma/client";
+import { UserPermission } from "../../src/generated/prisma/enums";
 import {
   getSeedUsers,
   SEED_AGENCIES,
@@ -129,6 +130,7 @@ export async function runSeedClean() {
     await prisma.workPost.deleteMany();
     await prisma.serviceDefinition.deleteMany();
     await prisma.userAgencyMembership.deleteMany();
+    await prisma.role.deleteMany();
     await prisma.agency.deleteMany();
     await prisma.user.deleteMany();
 
@@ -158,11 +160,24 @@ export async function runSeedClean() {
 
     agencyIdsByKey.set(agencyDefinition.key, createdAgency.id);
 
+    const adminRole = await prisma.role.create({
+      data: {
+        agencyId: createdAgency.id,
+        name: "Administrateur",
+        description: "Accès complet aux ressources de l'agence",
+        permissions: Object.values(UserPermission),
+        createdById: rootUser.id,
+      },
+    });
+
     await prisma.userAgencyMembership.create({
       data: {
         userId: rootUser.id,
         agencyId: createdAgency.id,
         isActive: true,
+        roles: {
+          connect: { id: adminRole.id },
+        },
       },
     });
 

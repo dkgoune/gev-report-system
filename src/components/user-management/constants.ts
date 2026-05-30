@@ -6,5 +6,6 @@ export const defaultUserFormState: UserFormState = {
   phone: "",
   password: "",
   isActive: true,
-  permissions: [],
+  roleIds: [],
+  memberships: [],
 };

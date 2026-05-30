@@ -3,12 +3,6 @@ export type EvaluationUserOption = {
   fullName: string;
 };
 
-export type EvaluationScheduleOption = {
-  id: string;
-  workDate: string;
-  serviceName: string;
-};
-
 export type EvaluationCriterionOption = {
   id: string;
   name: string;
@@ -17,7 +11,6 @@ export type EvaluationCriterionOption = {
 
 export type EvaluationItem = {
   id: string;
-  score: number;
   comment: string | null;
   createdAt: string;
   updatedAt: string;
@@ -37,19 +30,10 @@ export type EvaluationItem = {
     fullName: string;
     username: string;
   };
-  workSchedule: {
-    id: string;
-    workDate: string;
-    service: {
-      name: string;
-    };
-  };
 };
 
 export type EvaluationFormState = {
   evaluatedUserId: string;
   criterionId: string;
-  workScheduleId: string;
-  score: string;
   comment: string;
 };

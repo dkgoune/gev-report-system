@@ -9,25 +9,21 @@ import { defaultEvaluationFormState } from "./constants";
 import type {
   EvaluationCriterionOption,
   EvaluationFormState,
-  EvaluationScheduleOption,
   EvaluationUserOption,
 } from "./types";
 
 type EvaluationManagerProps = {
   canViewList: boolean;
   initialCriteria: EvaluationCriterionOption[];
-  initialSchedules: EvaluationScheduleOption[];
   initialUsers: EvaluationUserOption[];
 };
 
 export function EvaluationManager({
   canViewList,
   initialCriteria,
-  initialSchedules,
   initialUsers,
 }: EvaluationManagerProps) {
   const [criteria] = useState(initialCriteria);
-  const [schedules] = useState(initialSchedules);
   const [users] = useState(initialUsers);
   const [formState, setFormState] = useState<EvaluationFormState>(
     defaultEvaluationFormState
@@ -76,8 +72,7 @@ export function EvaluationManager({
             Ajouter une évaluation
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Enregistrez un critère appliqué à un membre du personnel depuis une
-            page dédiée.
+            Enregistrez les observations et remarques appliquées à un membre du personnel.
           </p>
         </div>
 
@@ -91,7 +86,6 @@ export function EvaluationManager({
       <EvaluationForm
         criteria={criteria}
         formState={formState}
-        schedules={schedules}
         submitting={submitting}
         users={users}
         onSubmit={onSubmit}

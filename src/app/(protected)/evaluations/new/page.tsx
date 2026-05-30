@@ -11,7 +11,7 @@ export default async function CreateEvaluationPage() {
     return null;
   }
 
-  const [users, criteria, schedules] = await Promise.all([
+  const [users, criteria] = await Promise.all([
     listScopedUsers(session),
     prisma.criterion.findMany({
       where: {
@@ -25,34 +25,12 @@ export default async function CreateEvaluationPage() {
         impact: true,
       },
     }),
-    prisma.workSchedule.findMany({
-      where: {
-        agencyId: session.activeAgencyId,
-        status: "published",
-      },
-      orderBy: [{ workDate: "desc" }],
-      take: 100,
-      select: {
-        id: true,
-        workDate: true,
-        service: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    }),
   ]);
 
   return (
     <EvaluationManager
       canViewList={hasPermission(session, "evaluation_read")}
       initialCriteria={criteria}
-      initialSchedules={schedules.map(schedule => ({
-        id: schedule.id,
-        workDate: schedule.workDate.toISOString(),
-        serviceName: schedule.service.name,
-      }))}
       initialUsers={users}
     />
   );

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
-import { hasPermission, parseUserPermissions } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET() {
   const session = await getServerSession();
@@ -44,6 +44,12 @@ export async function GET() {
         },
         select: {
           isActive: true,
+          roles: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
     },
@@ -55,6 +61,7 @@ export async function GET() {
       fullName: user.fullName,
       username: user.username,
       membershipActive: user.memberships[0]?.isActive ?? false,
+      roles: user.memberships[0]?.roles ?? [],
       phone: user.phone,
       isActive: user.isActive,
       createdAt: user.createdAt.toISOString(),
@@ -80,7 +87,11 @@ export async function POST(request: Request) {
       phone: string;
       password: string;
       isActive: boolean;
-      permissions: string[];
+      memberships: Array<{
+        agencyId: string;
+        isActive: boolean;
+        roleIds: string[];
+      }>;
     }>;
 
     const fullName = body.fullName?.trim();
@@ -88,42 +99,7 @@ export async function POST(request: Request) {
     const password = body.password;
     const phone = body.phone?.trim() || null;
     const isActive = body.isActive ?? true;
-    const { permissions: parsedPermissions, invalid } = parseUserPermissions(
-      body.permissions
-    );
-
-    const requestedPermissions = hasPermission(
-      session,
-      "user_manage_permissions"
-    )
-      ? parsedPermissions
-      : []; // Only consider permissions if user has management rights
-
-    if (invalid.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Une ou plusieurs permissions sont invalides.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const assignedPermissions =
-      session.systemRole === "super_admin"
-        ? requestedPermissions
-        : requestedPermissions.filter(permission =>
-            session.permissions.includes(permission)
-          );
-
-    if (assignedPermissions.length !== requestedPermissions.length) {
-      return NextResponse.json(
-        {
-          error:
-            "Vous ne pouvez attribuer que des permissions dont vous disposez.",
-        },
-        { status: 403 }
-      );
-    }
+    const membershipsInput = body.memberships || [];
 
     if (!fullName || !username || !password) {
       return NextResponse.json(
@@ -150,23 +126,14 @@ export async function POST(request: Request) {
         password: hashPassword(password),
         isActive,
         memberships: {
-          create: {
-            agencyId: session.activeAgencyId,
-            isActive: true,
-          },
+          create: membershipsInput.map(m => ({
+            agencyId: m.agencyId,
+            isActive: m.isActive,
+            roles: {
+              connect: (m.roleIds || []).map(id => ({ id })),
+            },
+          })),
         },
-        ...(assignedPermissions.length > 0
-          ? {
-              userPermissionRules: {
-                create: assignedPermissions.map(permission => ({
-                  agencyId: session.activeAgencyId,
-                  permission,
-                  isEnabled: true,
-                  createdById: session.userId,
-                })),
-              },
-            }
-          : {}),
       },
       select: {
         id: true,
@@ -182,6 +149,12 @@ export async function POST(request: Request) {
           },
           select: {
             isActive: true,
+            roles: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -195,6 +168,7 @@ export async function POST(request: Request) {
           fullName: user.fullName,
           username: user.username,
           membershipActive: user.memberships[0]?.isActive ?? false,
+          roles: user.memberships[0]?.roles ?? [],
           phone: user.phone,
           isActive: user.isActive,
           createdAt: user.createdAt.toISOString(),

@@ -61,11 +61,9 @@ export async function PATCH(
 
   try {
     const body = (await request.json()) as {
-      busArrivalTime?: string;
-      signedAt?: string;
-      slipNumber?: string;
       userId?: string;
-      workScheduleId?: string;
+      signatureCount?: number;
+      signedAt?: string;
     };
     const payload = await updateSignatureLog(session, id, body);
 

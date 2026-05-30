@@ -88,10 +88,10 @@ function signedEvaluationScore(score: number, impact: string): number {
   const normalizedImpact = impact.trim().toLowerCase();
 
   if (normalizedImpact === "low" || normalizedImpact === "negative") {
-    return -Math.abs(score);
+    return -1;
   }
 
-  return Math.abs(score);
+  return 1;
 }
 
 export async function getAnalyticsSnapshot(
@@ -163,60 +163,60 @@ export async function getAnalyticsSnapshot(
     }),
     prisma.signatureLog.findMany({
       where: {
-        workSchedule: {
-          agencyId: session.activeAgencyId,
-          workDate: {
-            gte: range.fromDate,
-            lte: range.toDate,
+        user: {
+          memberships: {
+            some: {
+              agencyId: session.activeAgencyId,
+              isActive: true,
+            },
           },
         },
         signedAt: {
-          not: null,
+          gte: range.fromDate,
+          lte: range.toDate,
         },
       },
       select: {
         id: true,
         userId: true,
         signedAt: true,
-        workSchedule: {
-          select: {
-            workDate: true,
-          },
-        },
+        signatureCount: true,
       },
     }),
     prisma.signatureLog.groupBy({
       by: ["userId"],
-      _count: {
-        _all: true,
+      _sum: {
+        signatureCount: true,
       },
       where: {
-        workSchedule: {
-          agencyId: session.activeAgencyId,
-          workDate: {
-            gte: range.fromDate,
-            lte: range.toDate,
+        user: {
+          memberships: {
+            some: {
+              agencyId: session.activeAgencyId,
+              isActive: true,
+            },
           },
         },
         signedAt: {
-          not: null,
+          gte: range.fromDate,
+          lte: range.toDate,
         },
       },
       orderBy: {
-        _count: {
-          userId: "desc",
+        _sum: {
+          signatureCount: "desc",
         },
       },
       take: 8,
     }),
     prisma.personnelEvaluation.findMany({
       where: {
-        workSchedule: {
+        criterion: {
           agencyId: session.activeAgencyId,
-          workDate: {
-            gte: range.fromDate,
-            lte: range.toDate,
-          },
+        },
+        createdAt: {
+          gte: range.fromDate,
+          lte: range.toDate,
         },
       },
       select: {
@@ -240,12 +240,12 @@ export async function getAnalyticsSnapshot(
         _all: true,
       },
       where: {
-        workSchedule: {
+        criterion: {
           agencyId: session.activeAgencyId,
-          workDate: {
-            gte: range.fromDate,
-            lte: range.toDate,
-          },
+        },
+        createdAt: {
+          gte: range.fromDate,
+          lte: range.toDate,
         },
       },
       orderBy: {
@@ -378,11 +378,11 @@ export async function getAnalyticsSnapshot(
   }
 
   for (const signature of signatureRows) {
-    const dateKey = toDateOnly(signature.workSchedule.workDate);
+    const dateKey = toDateOnly(signature.signedAt);
     const trendPoint = trendByDate.get(dateKey);
 
     if (trendPoint) {
-      trendPoint.signatures += 1;
+      trendPoint.signatures += signature.signatureCount;
     }
   }
 
@@ -422,7 +422,7 @@ export async function getAnalyticsSnapshot(
   const topSigners: TopSignerItem[] = signerGroups.map(group => ({
     userId: group.userId,
     fullName: usersById.get(group.userId) || "Utilisateur",
-    count: group._count._all,
+    count: group._sum?.signatureCount || 0,
   }));
 
   const criteriaUsage: CriteriaUsageItem[] = criteriaRows
@@ -466,7 +466,7 @@ export async function getAnalyticsSnapshot(
       reports: reports.length,
       incidents: incidentEntries.length,
       unreadReports,
-      signatures: signatureRows.length,
+      signatures: signatureRows.reduce((sum, sig) => sum + sig.signatureCount, 0),
       netEvaluationScore: netScore,
       positiveEvaluations: positiveCount,
     },

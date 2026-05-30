@@ -9,62 +9,37 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import type {
   SignatureAgentOption,
   SignatureFormState,
-  SignatureScheduleOption,
 } from "./types";
 
 type SignatureFormProps = {
-  schedules: SignatureScheduleOption[];
   signers: SignatureAgentOption[];
-  signersBySchedule: Record<string, SignatureAgentOption[]>;
   initialState: SignatureFormState;
   mode: "create" | "edit";
   signatureId?: string;
 };
 
 export function SignatureForm({
-  schedules,
   signers,
-  signersBySchedule,
   initialState,
   mode,
   signatureId,
 }: SignatureFormProps) {
   const router = useRouter();
   const defaultState = useMemo(() => initialState, [initialState]);
+  
   const signerOptions = useMemo(
     () =>
       signers.map(signer => ({
         value: signer.id,
-        label: `${signer.fullName}})`,
-        keywords: [signer.username],
+        label: `${signer.fullName} (@${signer.username})`,
+        keywords: [signer.username, signer.fullName],
       })),
     [signers]
   );
-  const scheduleOptions = useMemo(
-    () =>
-      schedules.map(schedule => ({
-        value: schedule.id,
-        label: `${new Date(schedule.workDate).toLocaleDateString("fr-FR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })} - ${schedule.serviceName}`,
-        keywords: [schedule.serviceName, schedule.workDate],
-      })),
-    [schedules]
-  );
+
   const [formState, setFormState] = useState<SignatureFormState>(defaultState);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const availableSignerOptions = useMemo(
-    () =>
-      (signersBySchedule[formState.workScheduleId] ?? []).map(signer => ({
-        value: signer.id,
-        label: `${signer.fullName}`,
-        keywords: [signer.username],
-      })),
-    [formState.workScheduleId, signersBySchedule]
-  );
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -94,13 +69,10 @@ export function SignatureForm({
       mode === "create" ? "Signature enregistrée." : "Signature mise à jour."
     );
 
-    if (mode === "edit") {
-      setSubmitting(false);
-      router.refresh();
-      return;
-    }
-
-    router.push(`/signatures/${payload.signature.id}`);
+    setSubmitting(false);
+    
+    // Redirect to list after create/edit
+    router.push("/signatures");
     router.refresh();
   }
 
@@ -131,107 +103,75 @@ export function SignatureForm({
   }
 
   return (
-    <section className="border border-slate-200 bg-slate-50 p-4">
-      <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
-        <div className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">Planning</span>
-          <SearchableSelect
-            value={formState.workScheduleId}
-            options={scheduleOptions}
-            placeholder="Choisir un planning"
-            searchPlaceholder="Rechercher un planning"
-            emptyMessage="Aucun planning correspondant."
-            onValueChange={value =>
-              setFormState(current => ({
-                ...current,
-                workScheduleId: value,
-                userId: (signersBySchedule[value] ?? []).some(
-                  signer => signer.id === current.userId
-                )
-                  ? current.userId
-                  : "",
-              }))
-            }
-          />
+    <section className="border border-slate-200 bg-slate-50 p-6 rounded-lg shadow-xs max-w-2xl">
+      <div className="mb-6">
+        <h3 className="text-lg font-bold text-slate-900">
+          {mode === "create" ? "Enregistrer une nouvelle signature" : "Modifier la signature"}
+        </h3>
+        <p className="text-xs text-slate-500 mt-1">
+          Indiquez le personnel ayant effectué des signatures de bordereaux opérationnels, le nombre exact réalisé et la date/heure de validation.
+        </p>
+      </div>
+
+      <form className="space-y-5" onSubmit={onSubmit}>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2 text-sm sm:col-span-2">
+            <span className="font-semibold text-slate-700 block">Signataire *</span>
+            <SearchableSelect
+              value={formState.userId}
+              options={signerOptions}
+              placeholder="Sélectionner un signataire"
+              searchPlaceholder="Rechercher un signataire"
+              emptyMessage="Aucun signataire correspondant."
+              onValueChange={value =>
+                setFormState(current => ({
+                  ...current,
+                  userId: value,
+                }))
+              }
+            />
+          </div>
+
+          <label className="space-y-2 text-sm block">
+            <span className="font-semibold text-slate-700 block">Nombre de signatures *</span>
+            <input
+              type="number"
+              min={1}
+              value={formState.signatureCount}
+              onChange={event =>
+                setFormState(current => ({
+                  ...current,
+                  signatureCount: Number(event.target.value) || 1,
+                }))
+              }
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+              placeholder="Ex. 5"
+              required
+            />
+          </label>
+
+          <div className="space-y-2 text-sm block">
+            <span className="font-semibold text-slate-700 block">Date et heure *</span>
+            <DateTimeInput
+              value={formState.signedAt}
+              onChange={value =>
+                setFormState(current => ({
+                  ...current,
+                  signedAt: value,
+                }))
+              }
+              placeholder="Sélectionner une date et une heure"
+            />
+          </div>
         </div>
 
-        <div className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">Signataire</span>
-          <SearchableSelect
-            value={formState.userId}
-            options={
-              formState.workScheduleId ? availableSignerOptions : signerOptions
-            }
-            placeholder="Choisir un signataire"
-            searchPlaceholder="Rechercher un signataire"
-            emptyMessage="Aucun signataire correspondant."
-            onValueChange={value =>
-              setFormState(current => ({
-                ...current,
-                userId: value,
-              }))
-            }
-          />
-        </div>
-
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">
-            Numéro de bordereau
-          </span>
-          <input
-            type="text"
-            value={formState.slipNumber}
-            onChange={event =>
-              setFormState(current => ({
-                ...current,
-                slipNumber: event.target.value,
-              }))
-            }
-            className="w-full border border-slate-300 bg-white px-3 py-2"
-            placeholder="Ex. BRD-2026-001"
-            required
-          />
-        </label>
-
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">
-            Date et heure de signature (optionnel)
-          </span>
-          <DateTimeInput
-            value={formState.signedAt}
-            onChange={value =>
-              setFormState(current => ({
-                ...current,
-                signedAt: value,
-              }))
-            }
-            placeholder="Sélectionner une date et une heure"
-          />
-        </label>
-
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-slate-700">
-            Arrivée du bus (optionnel)
-          </span>
-          <DateTimeInput
-            value={formState.busArrivalTime}
-            onChange={value =>
-              setFormState(current => ({
-                ...current,
-                busArrivalTime: value,
-              }))
-            }
-            placeholder="Sélectionner une date et une heure"
-          />
-        </label>
-
-        <div className="flex flex-wrap gap-2 md:col-span-2">
+        <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-200">
           <Button type="submit" disabled={submitting || deleting}>
             {submitting
               ? "Enregistrement..."
               : mode === "create"
                 ? "Enregistrer la signature"
-                : "Mettre à jour la signature"}
+                : "Enregistrer les modifications"}
           </Button>
           <Button
             type="button"
@@ -242,7 +182,7 @@ export function SignatureForm({
             Réinitialiser
           </Button>
 
-          <div className="flex-1 flex-wrap gap-2" />
+          <div className="flex-1 min-w-4" />
 
           {mode === "edit" ? (
             <Button

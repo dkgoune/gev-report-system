@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { UserPermission } from "@/generated/prisma/enums";
 import {
   createSessionToken,
   getServerSession,
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   const session = await getServerSession();
 
   if (!session) {
-    return NextResponse.json({ error: "Non autorise." }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
   try {
@@ -26,34 +27,67 @@ export async function POST(request: Request) {
       );
     }
 
-    const membership = await prisma.userAgencyMembership.findFirst({
-      where: {
-        userId: session.userId,
-        agencyId,
-        isActive: true,
-        agency: {
+    let targetAgencyId: string;
+    let permissions: UserPermission[];
+
+    if (session.systemRole === "super_admin") {
+      const agency = await prisma.agency.findFirst({
+        where: { id: agencyId, isActive: true },
+        select: { id: true },
+      });
+      if (!agency) {
+        return NextResponse.json(
+          { error: "Agence introuvable ou inactive." },
+          { status: 404 }
+        );
+      }
+      targetAgencyId = agency.id;
+      permissions = Object.values(UserPermission);
+    } else {
+      const membership = await prisma.userAgencyMembership.findFirst({
+        where: {
+          userId: session.userId,
+          agencyId,
           isActive: true,
+          agency: {
+            isActive: true,
+          },
         },
-      },
-      select: {
-        agencyId: true,
-      },
-    });
+        select: {
+          agencyId: true,
+          roles: {
+            where: { isActive: true },
+            select: {
+              permissions: true,
+            },
+          },
+        },
+      });
 
-    if (!membership) {
-      return NextResponse.json({ error: "Acces refuse." }, { status: 403 });
-    }
+      if (!membership) {
+        return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+      }
+      targetAgencyId = membership.agencyId;
 
-    if (session.systemRole !== "super_admin") {
-      return NextResponse.json({ error: "Acces refuse." }, { status: 403 });
+      const uniquePermissions = new Set<UserPermission>();
+      if (membership.roles) {
+        for (const role of membership.roles) {
+          if (role.permissions) {
+            for (const permission of role.permissions) {
+              uniquePermissions.add(permission);
+            }
+          }
+        }
+      }
+      permissions = Array.from(uniquePermissions);
     }
 
     const token = createSessionToken({
       userId: session.userId,
       username: session.username,
       systemRole: session.systemRole,
-      activeAgencyId: membership.agencyId,
-      permissions: session.permissions,
+      activeAgencyId: targetAgencyId,
+      permissions,
     });
 
     const cookieStore = await cookies();
@@ -67,12 +101,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      activeAgencyId: membership.agencyId,
+      activeAgencyId: targetAgencyId,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error switching agency:", error);
     return NextResponse.json(
-      { error: "Charge utile invalide." },
-      { status: 400 }
+      { error: "Impossible de changer d'agence." },
+      { status: 500 }
     );
   }
 }

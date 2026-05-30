@@ -78,7 +78,7 @@ const navItems: NavItem[] = [
     href: "/users",
     title: "Personnels",
     description: "Ajouter et gérer les comptes",
-    permissions: ["user_create", "user_read"],
+    permissions: ["user_create", "user_read", "user_manage_permissions"],
     children: [
       {
         href: "/users",
@@ -91,6 +91,12 @@ const navItems: NavItem[] = [
         match: "exact",
         title: "Ajouter un personnel",
         permissions: ["user_create"],
+      },
+      {
+        href: "/roles",
+        match: "prefix",
+        title: "Gestion des rôles",
+        permissions: ["user_manage_permissions"],
       },
     ],
   },
@@ -411,7 +417,7 @@ export function AppShell({ session, memberships, children }: AppShellProps) {
 
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="space-y-4">
-            <section className="overflow-hidden border border-slate-200/80 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
+            <section className="border border-slate-200/80 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
               <div className="p-4 sm:p-6">{children}</div>
             </section>
           </div>

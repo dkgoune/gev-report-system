@@ -13,7 +13,6 @@ type EvaluationsPageProps = {
     pageSize?: string;
     q?: string;
     to?: string;
-    workScheduleId?: string;
   }>;
 };
 
@@ -61,21 +60,20 @@ export default async function EvaluationsPage({
   const query = await searchParams;
   const search = (query.q || "").trim();
   const criteriaId = (query.criteriaId || "").trim();
-  const workScheduleId = (query.workScheduleId || "").trim();
   const startDate = normalizeDateInput(query.from);
   const endDate = normalizeDateInput(query.to);
   const pageSize = normalizePageSize(query.pageSize);
 
-  const workDateFilter: Prisma.DateTimeFilter = {
+  const createdAtFilter: Prisma.DateTimeFilter = {
     ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
-    ...(endDate ? { lte: new Date(`${endDate}T00:00:00.000Z`) } : {}),
+    ...(endDate ? { lte: new Date(`${endDate}T23:59:59.999Z`) } : {}),
   };
 
   const where: Prisma.PersonnelEvaluationWhereInput = {
-    workSchedule: {
+    criterion: {
       agencyId: session.activeAgencyId,
-      ...(startDate || endDate ? { workDate: workDateFilter } : {}),
     },
+    ...(startDate || endDate ? { createdAt: createdAtFilter } : {}),
   };
 
   if (search) {
@@ -100,10 +98,6 @@ export default async function EvaluationsPage({
 
   if (criteriaId) {
     where.criterionId = criteriaId;
-  }
-
-  if (workScheduleId) {
-    where.workScheduleId = workScheduleId;
   }
 
   const [totalItems, criteriaOptions] = await Promise.all([
@@ -132,7 +126,6 @@ export default async function EvaluationsPage({
     take: pageSize,
     select: {
       id: true,
-      score: true,
       comment: true,
       createdAt: true,
       updatedAt: true,
@@ -158,17 +151,6 @@ export default async function EvaluationsPage({
           username: true,
         },
       },
-      workSchedule: {
-        select: {
-          id: true,
-          workDate: true,
-          service: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
     },
   });
 
@@ -177,17 +159,12 @@ export default async function EvaluationsPage({
       criteriaOptions={criteriaOptions}
       evaluations={evaluations.map(evaluation => ({
         id: evaluation.id,
-        score: evaluation.score,
         comment: evaluation.comment,
         createdAt: evaluation.createdAt.toISOString(),
         updatedAt: evaluation.updatedAt.toISOString(),
         evaluatedUser: evaluation.evaluatedUser,
         criterion: evaluation.criterion,
         evaluatingLeader: evaluation.evaluatingLeader,
-        workSchedule: {
-          ...evaluation.workSchedule,
-          workDate: evaluation.workSchedule.workDate.toISOString(),
-        },
       }))}
       filters={{
         criteriaId,
@@ -196,7 +173,6 @@ export default async function EvaluationsPage({
         pageSize,
         search,
         startDate,
-        workScheduleId,
       }}
       totalItems={totalItems}
       totalPages={totalPages}

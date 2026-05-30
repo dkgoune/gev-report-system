@@ -126,6 +126,28 @@ export function UsersList({
           <span>@{row.original.username}</span>
         ),
       },
+      {
+        id: "roles",
+        header: "Rôles",
+        cell: ({ row }: CellContext<UserItem, unknown>) => {
+          const roles = row.original.roles || [];
+          if (roles.length === 0) {
+            return <span className="text-slate-400 text-xs italic">Aucun rôle</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {roles.map(r => (
+                <span
+                  key={r.id}
+                  className="inline-flex bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-800 border border-slate-200"
+                >
+                  {r.name}
+                </span>
+              ))}
+            </div>
+          );
+        },
+      },
 
       {
         id: "phone",

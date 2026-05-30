@@ -18,7 +18,6 @@ export async function GET(request: Request) {
       q: searchParams.get("q") || undefined,
       to: searchParams.get("to") || undefined,
       userId: searchParams.get("userId") || undefined,
-      workScheduleId: searchParams.get("workScheduleId") || undefined,
     });
 
     return NextResponse.json(payload);
@@ -49,11 +48,9 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
-      busArrivalTime?: string;
-      signedAt?: string;
-      slipNumber?: string;
       userId?: string;
-      workScheduleId?: string;
+      signatureCount?: number;
+      signedAt?: string;
     };
     const payload = await createSignatureLog(session, body);
     return NextResponse.json(payload, { status: 201 });

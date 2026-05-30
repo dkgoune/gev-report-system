@@ -25,8 +25,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {accessDenied ? (
           <p className="mb-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            Accès refusé. Seuls les comptes admin et leaders peuvent utiliser la
-            plateforme.
+            Accès refusé. Vérifiez vos identifiants et réessayez.
           </p>
         ) : null}
 

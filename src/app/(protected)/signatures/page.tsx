@@ -12,13 +12,12 @@ type SignaturesPageProps = {
     q?: string;
     to?: string;
     userId?: string;
-    workScheduleId?: string;
   }>;
 };
 
 export default async function SignaturesPage({
   searchParams,
-}: SignaturesPageProps) {
+  }: SignaturesPageProps) {
   const session = await getServerSession();
 
   if (!session) {
@@ -34,7 +33,7 @@ export default async function SignaturesPage({
   return (
     <SignaturesList
       filters={payload.filters}
-      schedules={payload.schedules}
+      signers={payload.signers}
       signatures={payload.signatures}
       summary={payload.summary}
       totalItems={payload.pagination.totalItems}

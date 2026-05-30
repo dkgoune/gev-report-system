@@ -39,6 +39,12 @@ export default async function UsersPage() {
         },
         select: {
           isActive: true,
+          roles: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
     },
@@ -49,6 +55,7 @@ export default async function UsersPage() {
     fullName: user.fullName,
     username: user.username,
     membershipActive: user.memberships[0]?.isActive ?? false,
+    roles: user.memberships[0]?.roles ?? [],
     phone: user.phone,
     isActive: user.isActive,
     createdAt: user.createdAt.toISOString(),

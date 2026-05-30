@@ -42,13 +42,9 @@ export default async function SignatureDetailPage({
   }
 
   const initialState = {
-    busArrivalTime: payload.signature.busArrivalTime
-      ? formatSignatureDateTimeInput(payload.signature.busArrivalTime)
-      : "",
+    signatureCount: payload.signature.signatureCount,
     signedAt: formatSignatureDateTimeInput(payload.signature.signedAt),
-    slipNumber: payload.signature.slipNumber,
     userId: payload.signature.user.id,
-    workScheduleId: payload.signature.workSchedule.id,
   } satisfies SignatureFormState;
 
   return (
@@ -56,12 +52,10 @@ export default async function SignatureDetailPage({
       <div className="flex flex-col gap-4 md:flex-row md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Modifier une signature de bordereau
+            Modifier les signatures
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Ajustez le planning, le signataire affecté, la date réelle de
-            signature si elle est connue, ou l'arrivée du bus, puis enregistrez
-            vos modifications.
+            Ajustez le signataire, le nombre de signatures ou la date et l'heure, puis enregistrez vos modifications.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -72,9 +66,7 @@ export default async function SignatureDetailPage({
       </div>
 
       <SignatureForm
-        schedules={payload.schedules}
         signers={payload.signers}
-        signersBySchedule={payload.signersBySchedule}
         initialState={initialState}
         mode="edit"
         signatureId={payload.signature.id}
