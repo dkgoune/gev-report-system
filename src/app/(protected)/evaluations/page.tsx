@@ -64,7 +64,7 @@ export default async function EvaluationsPage({
   const endDate = normalizeDateInput(query.to);
   const pageSize = normalizePageSize(query.pageSize);
 
-  const createdAtFilter: Prisma.DateTimeFilter = {
+  const evaluationDateFilter: Prisma.DateTimeFilter = {
     ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
     ...(endDate ? { lte: new Date(`${endDate}T23:59:59.999Z`) } : {}),
   };
@@ -73,7 +73,7 @@ export default async function EvaluationsPage({
     criterion: {
       agencyId: session.activeAgencyId,
     },
-    ...(startDate || endDate ? { createdAt: createdAtFilter } : {}),
+    ...(startDate || endDate ? { evaluationDate: evaluationDateFilter } : {}),
   };
 
   if (search) {
@@ -112,6 +112,7 @@ export default async function EvaluationsPage({
         id: true,
         name: true,
         impact: true,
+        requiresPersonnel: true,
       },
     }),
   ]);
@@ -121,7 +122,7 @@ export default async function EvaluationsPage({
 
   const evaluations = await prisma.personnelEvaluation.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }],
+    orderBy: [{ evaluationDate: "desc" }, { createdAt: "desc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
     select: {
@@ -129,6 +130,9 @@ export default async function EvaluationsPage({
       comment: true,
       createdAt: true,
       updatedAt: true,
+      evaluationDate: true,
+      isCancelled: true,
+      cancelledAt: true,
       evaluatedUser: {
         select: {
           id: true,
@@ -154,14 +158,20 @@ export default async function EvaluationsPage({
     },
   });
 
+  const canCancel = hasPermission(session, "evaluation_create");
+
   return (
     <EvaluationsList
       criteriaOptions={criteriaOptions}
+      canCancel={canCancel}
       evaluations={evaluations.map(evaluation => ({
         id: evaluation.id,
         comment: evaluation.comment,
         createdAt: evaluation.createdAt.toISOString(),
         updatedAt: evaluation.updatedAt.toISOString(),
+        evaluationDate: evaluation.evaluationDate.toISOString(),
+        isCancelled: evaluation.isCancelled,
+        cancelledAt: evaluation.cancelledAt?.toISOString() ?? null,
         evaluatedUser: evaluation.evaluatedUser,
         criterion: evaluation.criterion,
         evaluatingLeader: evaluation.evaluatingLeader,

@@ -91,6 +91,7 @@ export async function GET() {
       weight: true,
       maxDaily: true,
       isActive: true,
+      requiresPersonnel: true,
       createdAt: true,
       createdById: true,
     },
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
       weight: string;
       maxDaily: string;
       isActive: boolean;
+      requiresPersonnel: boolean;
     }>;
 
     const name = body.name?.trim();
@@ -126,6 +128,7 @@ export async function POST(request: Request) {
     const weight = parseWeight(body.weight);
     const maxDaily = parseMaxDaily(body.maxDaily);
     const isActive = body.isActive ?? true;
+    const requiresPersonnel = body.requiresPersonnel ?? true;
 
     if (!name || !impact) {
       return NextResponse.json(
@@ -154,6 +157,7 @@ export async function POST(request: Request) {
         weight: weight.value,
         maxDaily: maxDaily.value,
         isActive,
+        requiresPersonnel,
         createdById: session.userId,
       },
       select: {
@@ -163,6 +167,7 @@ export async function POST(request: Request) {
         weight: true,
         maxDaily: true,
         isActive: true,
+        requiresPersonnel: true,
         createdAt: true,
         createdById: true,
       },

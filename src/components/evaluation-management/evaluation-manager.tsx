@@ -32,6 +32,13 @@ export function EvaluationManager({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const selectedCriterion = criteria.find(c => c.id === formState.criterionId);
+    if (selectedCriterion?.requiresPersonnel && !formState.evaluatedUserId) {
+      toast.error("Ce critère nécessite de spécifier un personnel.");
+      return;
+    }
+
     setSubmitting(true);
 
     const response = await fetch("/api/evaluations", {

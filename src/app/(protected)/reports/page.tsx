@@ -3,6 +3,7 @@ import { ReportsOverview } from "../../../components/reports/reports-overview";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { hasPermission } from "@/lib/permissions";
+import { getReportViewLimits } from "@/lib/report-view-limit";
 
 type ReportsPageProps = {
   searchParams: Promise<{
@@ -70,35 +71,65 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const sortField = normalizeSortField(query.sortField);
   const sortDirection = normalizeSortDirection(query.sortDirection);
 
-  const where: Record<string, unknown> = {
-    workSchedule: {
-      agencyId: session.activeAgencyId,
-      ...(serviceId ? { serviceId } : {}),
-    },
-  };
+  const limits = await getReportViewLimits(session);
+
+  const andConditions: any[] = [];
 
   if (isRead) {
-    where.isRead = isRead === "true";
+    andConditions.push({ isRead: isRead === "true" });
   }
 
   if (search) {
-    where.OR = [
-      { ambianceGenerale: { contains: search, mode: "insensitive" } },
-      { problemesRencontres: { contains: search, mode: "insensitive" } },
-      { observationGeneral: { contains: search, mode: "insensitive" } },
-      { reportedBy: { fullName: { contains: search, mode: "insensitive" } } },
-      { reportedBy: { username: { contains: search, mode: "insensitive" } } },
-    ];
+    andConditions.push({
+      OR: [
+        { ambianceGenerale: { contains: search, mode: "insensitive" } },
+        { problemesRencontres: { contains: search, mode: "insensitive" } },
+        { observationGeneral: { contains: search, mode: "insensitive" } },
+        { reportedBy: { fullName: { contains: search, mode: "insensitive" } } },
+        { reportedBy: { username: { contains: search, mode: "insensitive" } } },
+      ],
+    });
   }
 
-  if (startDate || endDate) {
-    where.workSchedule = {
-      ...(where.workSchedule as Record<string, unknown>),
-      workDate: {
-        ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
-        ...(endDate ? { lte: new Date(`${endDate}T00:00:00.000Z`) } : {}),
-      },
-    };
+  if (limits.hasLimit) {
+    andConditions.push({
+      OR: [
+        { reportedById: session.userId },
+        {
+          reportedBy: {
+            memberships: {
+              some: {
+                agencyId: session.activeAgencyId,
+                roles: {
+                  some: {
+                    id: { in: limits.allowedRoleIds },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  const where: any = {
+    workSchedule: {
+      agencyId: session.activeAgencyId,
+      ...(serviceId ? { serviceId } : {}),
+      ...((startDate || endDate)
+        ? {
+            workDate: {
+              ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
+              ...(endDate ? { lte: new Date(`${endDate}T00:00:00.000Z`) } : {}),
+            },
+          }
+        : {}),
+    },
+  };
+
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
   }
 
   const orderBy =

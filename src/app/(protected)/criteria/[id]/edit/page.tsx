@@ -35,6 +35,7 @@ export default async function EditCriterionPage({
       weight: true,
       maxDaily: true,
       isActive: true,
+      requiresPersonnel: true,
     },
   });
 
@@ -52,6 +53,7 @@ export default async function EditCriterionPage({
         weight: criterion.weight.toString(),
         maxDaily: criterion.maxDaily === null ? "" : String(criterion.maxDaily),
         isActive: criterion.isActive,
+        requiresPersonnel: criterion.requiresPersonnel,
       }}
       title={`Mettre a jour ${criterion.name}`}
       description="Modifiez le libellé, l'impact, le poids ou la limite quotidienne du critère depuis une page dédiée."

@@ -37,6 +37,7 @@ export async function PATCH(request: Request, { params }: Params) {
       description: string | null;
       icon: string | null;
       isActive: boolean;
+      allowedPostIds?: string[];
     }>;
 
     const current = await prisma.incidentTemplate.findFirst({
@@ -69,6 +70,13 @@ export async function PATCH(request: Request, { params }: Params) {
           : {}),
         ...(typeof body.isActive === "boolean"
           ? { isActive: body.isActive }
+          : {}),
+        ...(body.allowedPostIds
+          ? {
+              allowedPosts: {
+                set: body.allowedPostIds.map(id => ({ id })),
+              },
+            }
           : {}),
       },
     });

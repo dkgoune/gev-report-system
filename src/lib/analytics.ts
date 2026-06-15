@@ -214,10 +214,11 @@ export async function getAnalyticsSnapshot(
         criterion: {
           agencyId: session.activeAgencyId,
         },
-        createdAt: {
+        evaluationDate: {
           gte: range.fromDate,
           lte: range.toDate,
         },
+        isCancelled: false,
       },
       select: {
         score: true,
@@ -243,10 +244,11 @@ export async function getAnalyticsSnapshot(
         criterion: {
           agencyId: session.activeAgencyId,
         },
-        createdAt: {
+        evaluationDate: {
           gte: range.fromDate,
           lte: range.toDate,
         },
+        isCancelled: false,
       },
       orderBy: {
         _count: {
@@ -407,16 +409,18 @@ export async function getAnalyticsSnapshot(
     netScore += signed;
 
     const userId = evaluation.evaluatedUserId;
-    const current = leaderboardMap.get(userId) || {
-      userId,
-      fullName: evaluation.evaluatedUser.fullName,
-      count: 0,
-      score: 0,
-    };
+    if (userId && evaluation.evaluatedUser) {
+      const current = leaderboardMap.get(userId) || {
+        userId,
+        fullName: evaluation.evaluatedUser.fullName,
+        count: 0,
+        score: 0,
+      };
 
-    current.count += 1;
-    current.score += signed;
-    leaderboardMap.set(userId, current);
+      current.count += 1;
+      current.score += signed;
+      leaderboardMap.set(userId, current);
+    }
   }
 
   const topSigners: TopSignerItem[] = signerGroups.map(group => ({

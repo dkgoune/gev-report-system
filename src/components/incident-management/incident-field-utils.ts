@@ -12,6 +12,7 @@ export type TemplateFormState = {
   icon: string;
   isActive: boolean;
   publishVersion: boolean;
+  allowedPostIds: string[];
 };
 
 export type FieldDraft = {
@@ -37,6 +38,7 @@ export const defaultTemplateFormState: TemplateFormState = {
   icon: "",
   isActive: true,
   publishVersion: true,
+  allowedPostIds: [],
 };
 
 export const defaultFieldDraft: FieldDraft = {

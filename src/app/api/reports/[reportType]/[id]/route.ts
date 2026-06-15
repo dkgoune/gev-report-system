@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { hasPermission } from "@/lib/permissions";
 import { getReportData } from "@/lib/reports";
+import { getReportViewLimits } from "@/lib/report-view-limit";
 
 export async function GET(
   _request: Request,
@@ -27,6 +28,46 @@ export async function GET(
   if (reportType !== "general") {
     return NextResponse.json(
       { error: "Type de rapport introuvable." },
+      { status: 404 }
+    );
+  }
+
+  const limits = await getReportViewLimits(session);
+  const checkWhere: any = {
+    id,
+    workSchedule: {
+      agencyId: session.activeAgencyId,
+    },
+  };
+
+  if (limits.hasLimit) {
+    checkWhere.AND = [
+      {
+        OR: [
+          { reportedById: session.userId },
+          {
+            reportedBy: {
+              memberships: {
+                some: {
+                  agencyId: session.activeAgencyId,
+                  roles: {
+                    some: {
+                      id: { in: limits.allowedRoleIds },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    ];
+  }
+
+  const visibleCount = await prisma.generalReport.count({ where: checkWhere });
+  if (visibleCount === 0) {
+    return NextResponse.json(
+      { error: "Rapport introuvable ou accès non autorisé." },
       { status: 404 }
     );
   }
@@ -73,13 +114,40 @@ export async function PATCH(
       );
     }
 
-    const report = await prisma.generalReport.findFirst({
-      where: {
-        id,
-        workSchedule: {
-          agencyId: session.activeAgencyId,
-        },
+    const limits = await getReportViewLimits(session);
+    const where: any = {
+      id,
+      workSchedule: {
+        agencyId: session.activeAgencyId,
       },
+    };
+
+    if (limits.hasLimit) {
+      where.AND = [
+        {
+          OR: [
+            { reportedById: session.userId },
+            {
+              reportedBy: {
+                memberships: {
+                  some: {
+                    agencyId: session.activeAgencyId,
+                    roles: {
+                      some: {
+                        id: { in: limits.allowedRoleIds },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ];
+    }
+
+    const report = await prisma.generalReport.findFirst({
+      where,
       select: {
         id: true,
         status: true,

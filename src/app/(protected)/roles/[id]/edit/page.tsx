@@ -21,9 +21,31 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
 
   const { id } = await params;
 
-  const role = await prisma.role.findUnique({
-    where: { id },
-  });
+  const [role, roles] = await Promise.all([
+    prisma.role.findUnique({
+      where: { id },
+      include: {
+        allowedToViewReportsOf: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    }),
+    prisma.role.findMany({
+      where: {
+        agencyId: session.activeAgencyId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
+  ]);
 
   if (!role || role.agencyId !== session.activeAgencyId) {
     notFound();
@@ -33,10 +55,12 @@ export default async function EditRolePage({ params }: EditRolePageProps) {
     <RoleEditorForm
       mode="update"
       roleId={role.id}
+      availableRoles={roles}
       initialState={{
         name: role.name,
         description: role.description || "",
         permissions: role.permissions,
+        allowedToViewRoleIds: role.allowedToViewReportsOf.map(r => r.id),
       }}
       title={`Modifier le rôle : ${role.name}`}
       description="Ajustez le nom, la description ou modifiez la grille des permissions de ce rôle."

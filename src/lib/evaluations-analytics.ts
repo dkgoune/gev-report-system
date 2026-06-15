@@ -24,7 +24,7 @@ type AnalyticsEvaluationRecord = {
     fullName: string;
     groupName: string;
     userId: string;
-  };
+  } | null;
 };
 
 function normalizeImpact(value: string, score: number): NormalizedImpact {
@@ -57,68 +57,105 @@ export async function getEvaluationsAnalyticsSnapshot(
   session: SessionPayload,
   range: AnalyticsRange
 ): Promise<EvaluationsAnalyticsSnapshot> {
-  const evaluations = await prisma.personnelEvaluation.findMany({
-    where: {
-      criterion: {
-        agencyId: session.activeAgencyId,
-      },
-      createdAt: {
-        gte: range.fromDate,
-        lte: range.toDate,
-      },
-    },
-    select: {
-      id: true,
-      score: true,
-      criterionId: true,
-      evaluatedUserId: true,
-      evaluatingLeaderId: true,
-      createdAt: true,
-      criterion: {
-        select: {
-          name: true,
-          impact: true,
+  const [evaluations, allAgencyUsers] = await Promise.all([
+    prisma.personnelEvaluation.findMany({
+      where: {
+        criterion: {
+          agencyId: session.activeAgencyId,
         },
-      },
-      evaluatedUser: {
-        select: {
-          id: true,
-          fullName: true,
+        evaluationDate: {
+          gte: range.fromDate,
+          lte: range.toDate,
         },
+        isCancelled: false,
       },
-      evaluatingLeader: {
-        select: {
-          id: true,
-          fullName: true,
+      select: {
+        id: true,
+        score: true,
+        criterionId: true,
+        evaluatedUserId: true,
+        evaluatingLeaderId: true,
+        createdAt: true,
+        evaluationDate: true,
+        criterion: {
+          select: {
+            name: true,
+            impact: true,
+          },
         },
-      },
-      workSchedule: {
-        select: {
-          id: true,
-          workDate: true,
-          service: {
-            select: {
-              name: true,
+        evaluatedUser: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+        evaluatingLeader: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+        workSchedule: {
+          select: {
+            id: true,
+            workDate: true,
+            service: {
+              select: {
+                name: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
+      orderBy: {
+        evaluationDate: "asc",
+      },
+    }),
+    prisma.user.findMany({
+      where: {
+        memberships: {
+          some: {
+            agencyId: session.activeAgencyId,
+            isActive: true,
+          },
+        },
+      },
+      select: {
+        id: true,
+        fullName: true,
+        memberships: {
+          where: {
+            agencyId: session.activeAgencyId,
+          },
+          select: {
+            roles: {
+              where: { isActive: true },
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const rolesMap = new Map<string, string>();
+  for (const user of allAgencyUsers) {
+    const groupName = user.memberships[0]?.roles.map(r => r.name).join(", ") || "Agent";
+    rolesMap.set(user.id, groupName);
+  }
 
   const records: AnalyticsEvaluationRecord[] = evaluations.map(evaluation => {
     const impact = normalizeImpact(
       evaluation.criterion.impact,
       evaluation.score
     );
-    // Decoupled from scores: Positive yields +1, Negative yields -1
-    const signedScore = impact === "NEGATIVE" ? -1 : 1;
+    // Signed score is based on the actual evaluation score (criterion weight)
+    const signedScore = impact === "NEGATIVE" ? -evaluation.score : evaluation.score;
 
     const serviceName = evaluation.workSchedule?.service.name || "Général";
-    const date = toDateOnly(evaluation.createdAt);
+    const date = toDateOnly(evaluation.evaluationDate);
 
     return {
       criterionId: evaluation.criterionId,
@@ -128,11 +165,13 @@ export async function getEvaluationsAnalyticsSnapshot(
       score: evaluation.score,
       signedScore,
       serviceName,
-      worker: {
-        userId: evaluation.evaluatedUser.id,
-        fullName: evaluation.evaluatedUser.fullName,
-        groupName: "Agent",
-      },
+      worker: evaluation.evaluatedUser
+        ? {
+            userId: evaluation.evaluatedUser.id,
+            fullName: evaluation.evaluatedUser.fullName,
+            groupName: rolesMap.get(evaluation.evaluatedUser.id) || "Agent",
+          }
+        : null,
       evaluator: {
         userId: evaluation.evaluatingLeader.id,
         fullName: evaluation.evaluatingLeader.fullName,
@@ -151,6 +190,18 @@ export async function getEvaluationsAnalyticsSnapshot(
       userId: string;
     }
   >();
+
+  for (const user of allAgencyUsers) {
+    const groupName = rolesMap.get(user.id) || "Agent";
+    workerMap.set(user.id, {
+      userId: user.id,
+      fullName: user.fullName,
+      groupName,
+      evaluationCount: 0,
+      totalScore: 0,
+    });
+  }
+
   const groupMap = new Map<
     string,
     {
@@ -192,29 +243,31 @@ export async function getEvaluationsAnalyticsSnapshot(
     trend.netScore += record.signedScore;
     trendMap.set(record.date, trend);
 
-    const worker = workerMap.get(record.worker.userId) ?? {
-      userId: record.worker.userId,
-      fullName: record.worker.fullName,
-      groupName: record.worker.groupName,
-      evaluationCount: 0,
-      totalScore: 0,
-    };
-    worker.evaluationCount += 1;
-    worker.totalScore += record.signedScore;
-    workerMap.set(record.worker.userId, worker);
+    if (record.worker) {
+      const worker = workerMap.get(record.worker.userId) ?? {
+        userId: record.worker.userId,
+        fullName: record.worker.fullName,
+        groupName: record.worker.groupName,
+        evaluationCount: 0,
+        totalScore: 0,
+      };
+      worker.evaluationCount += 1;
+      worker.totalScore += record.signedScore;
+      workerMap.set(record.worker.userId, worker);
 
-    const groupKey = record.worker.groupName;
-    const group = groupMap.get(groupKey) ?? {
-      groupName: record.worker.groupName,
-      service: record.serviceName || null,
-      evaluationCount: 0,
-      totalScore: 0,
-      evaluatedWorkers: new Set<string>(),
-    };
-    group.evaluationCount += 1;
-    group.totalScore += record.signedScore;
-    group.evaluatedWorkers.add(record.worker.userId);
-    groupMap.set(groupKey, group);
+      const groupKey = record.worker.groupName;
+      const group = groupMap.get(groupKey) ?? {
+        groupName: record.worker.groupName,
+        service: record.serviceName || null,
+        evaluationCount: 0,
+        totalScore: 0,
+        evaluatedWorkers: new Set<string>(),
+      };
+      group.evaluationCount += 1;
+      group.totalScore += record.signedScore;
+      group.evaluatedWorkers.add(record.worker.userId);
+      groupMap.set(groupKey, group);
+    }
 
     const criteria = criteriaMap.get(record.criterionId) ?? {
       criteriaId: record.criterionId,
@@ -236,7 +289,9 @@ export async function getEvaluationsAnalyticsSnapshot(
     };
     evaluator.evaluationCount += 1;
     evaluator.totalScore += record.signedScore;
-    evaluator.distinctWorkers.add(record.worker.userId);
+    if (record.worker) {
+      evaluator.distinctWorkers.add(record.worker.userId);
+    }
     evaluatorMap.set(record.evaluator.userId, evaluator);
 
     netScore += record.signedScore;
@@ -311,7 +366,7 @@ export async function getEvaluationsAnalyticsSnapshot(
     summary: {
       totalEvaluations: records.length,
       netScore,
-      activeWorkers: workerMap.size,
+      activeWorkers: Array.from(workerMap.values()).filter(w => w.evaluationCount > 0).length,
       activeGroups: groupMap.size,
       positiveCount,
       negativeCount,

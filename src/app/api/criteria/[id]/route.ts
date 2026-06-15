@@ -89,6 +89,7 @@ export async function PATCH(request: Request, { params }: Params) {
       weight: string;
       maxDaily: string;
       isActive: boolean;
+      requiresPersonnel: boolean;
     }>;
 
     const existing = await prisma.criterion.findFirst({
@@ -114,6 +115,7 @@ export async function PATCH(request: Request, { params }: Params) {
       weight?: string;
       maxDaily?: number;
       isActive?: boolean;
+      requiresPersonnel?: boolean;
     } = {};
 
     if (typeof body.name === "string") {
@@ -164,6 +166,10 @@ export async function PATCH(request: Request, { params }: Params) {
       payload.isActive = body.isActive;
     }
 
+    if (typeof body.requiresPersonnel === "boolean") {
+      payload.requiresPersonnel = body.requiresPersonnel;
+    }
+
     if (Object.keys(payload).length === 0) {
       return NextResponse.json(
         { error: "Aucune modification détectée." },
@@ -181,6 +187,7 @@ export async function PATCH(request: Request, { params }: Params) {
         weight: true,
         maxDaily: true,
         isActive: true,
+        requiresPersonnel: true,
         createdAt: true,
         createdById: true,
       },

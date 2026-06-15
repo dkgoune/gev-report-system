@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import ViewReportComponent from "@/components/reports/view-report-component";
 import { hasPermission } from "@/lib/permissions";
+import { getReportViewLimits } from "@/lib/report-view-limit";
 
 type ReportDetailPageProps = {
   params: Promise<{
@@ -32,13 +33,44 @@ export default async function ReportDetailPage({
   }
 
   const { id } = await params;
-  const report = await prisma.generalReport.findFirst({
-    where: {
-      id,
-      workSchedule: {
-        agencyId: session.activeAgencyId,
-      },
+  const limits = await getReportViewLimits(session);
+
+  const andConditions: any[] = [];
+  if (limits.hasLimit) {
+    andConditions.push({
+      OR: [
+        { reportedById: session.userId },
+        {
+          reportedBy: {
+            memberships: {
+              some: {
+                agencyId: session.activeAgencyId,
+                roles: {
+                  some: {
+                    id: { in: limits.allowedRoleIds },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  const where: any = {
+    id,
+    workSchedule: {
+      agencyId: session.activeAgencyId,
     },
+  };
+
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
+  }
+
+  const report = await prisma.generalReport.findFirst({
+    where,
     include: {
       reportedBy: {
         select: {
@@ -62,6 +94,13 @@ export default async function ReportDetailPage({
       },
       incidentEntries: {
         orderBy: [{ displayOrder: "asc" }],
+        include: {
+          template: {
+            include: {
+              allowedPosts: true,
+            },
+          },
+        },
       },
       attendances: {
         include: {
@@ -82,6 +121,19 @@ export default async function ReportDetailPage({
     notFound();
   }
 
+  const userAssignment = await prisma.workScheduleAssignment.findFirst({
+    where: {
+      workScheduleId: report.workScheduleId,
+      userId: session.userId,
+    },
+    select: {
+      postId: true,
+      isLeader: true,
+      isSubleader: true,
+    },
+  });
+
+  const canReadAllIncidents = hasPermission(session, "report_read_all_incidents");
   const canUpdate = hasPermission(session, "report_create", "report_update");
   const canMarkRead = hasPermission(session, "report_mark_read");
 
@@ -90,6 +142,8 @@ export default async function ReportDetailPage({
       report={report}
       canUpdate={canUpdate}
       canMarkRead={canMarkRead}
+      userAssignment={userAssignment}
+      canReadAllIncidents={canReadAllIncidents}
     />
   );
 }

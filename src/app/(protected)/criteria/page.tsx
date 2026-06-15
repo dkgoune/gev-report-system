@@ -27,6 +27,7 @@ export default async function CriteriaPage() {
       weight: true,
       maxDaily: true,
       isActive: true,
+      requiresPersonnel: true,
       createdAt: true,
       createdById: true,
     },

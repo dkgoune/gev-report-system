@@ -5,6 +5,7 @@ import { Crown, Plus, Printer, Shield, X } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { WeeklyWorkSchedulePrintable } from "./weekly-work-schedule-printable";
 import type {
   WeeklyAssignmentsByDate,
@@ -216,6 +217,14 @@ export function WeeklyWorkScheduleBoard({
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const currentWeekStart = getCurrentWeekStartKey();
   const maxWeekStart = getMaxWeekStartKey();
+
+  const userOptions = useMemo(() => {
+    return users.map(user => ({
+      value: user.id,
+      label: user.fullName,
+      keywords: [user.username],
+    }));
+  }, [users]);
 
   //   Print week schedule
   const onPrint = useReactToPrint({
@@ -830,21 +839,16 @@ export function WeeklyWorkScheduleBoard({
             </p>
 
             <div className="mt-3 space-y-3">
-              <label className="space-y-1 text-sm">
+              <div className="space-y-1 text-sm">
                 <span className="font-medium text-slate-700">Personnel</span>
-                <select
+                <SearchableSelect
+                  options={userOptions}
                   value={selectedUserId}
-                  onChange={event => setSelectedUserId(event.target.value)}
-                  className="w-full border border-slate-300 bg-white px-3 py-2"
-                >
-                  <option value="">Selectionner</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  onValueChange={setSelectedUserId}
+                  placeholder="Selectionner"
+                  searchPlaceholder="Rechercher un personnel..."
+                />
+              </div>
 
               <label className="space-y-1 text-sm">
                 <span className="font-medium text-slate-700">Role</span>

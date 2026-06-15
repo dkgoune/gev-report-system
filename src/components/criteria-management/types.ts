@@ -7,6 +7,7 @@ export type CriterionItem = {
   weight: string;
   maxDaily: number | null;
   isActive: boolean;
+  requiresPersonnel: boolean;
   createdAt: string;
   createdById: string;
 };
@@ -17,4 +18,5 @@ export type CriterionFormState = {
   weight: string;
   maxDaily: string;
   isActive: boolean;
+  requiresPersonnel: boolean;
 };

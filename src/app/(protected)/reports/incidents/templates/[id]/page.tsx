@@ -20,7 +20,7 @@ export default async function IncidentTemplateDetailPage({ params }: Params) {
 
   const { id } = await params;
 
-  const { template, templates } = await getIncidentTemplateDetailPageData(
+  const { template, templates, posts } = await getIncidentTemplateDetailPageData(
     session.activeAgencyId,
     id
   );
@@ -36,6 +36,7 @@ export default async function IncidentTemplateDetailPage({ params }: Params) {
         mode="edit"
         templates={templates}
         template={template}
+        posts={posts}
       />
     </div>
   );

@@ -31,6 +31,7 @@ function serializeTemplate(template: {
     createdAt: Date;
     fieldsJson: unknown;
   }>;
+  allowedPosts?: Array<{ id: string; name: string; code: string }>;
 }) {
   return {
     id: template.id,
@@ -49,6 +50,11 @@ function serializeTemplate(template: {
       createdAt: version.createdAt.toISOString(),
       fields: sanitizeIncidentFields(version.fieldsJson),
     })),
+    allowedPosts: template.allowedPosts?.map(post => ({
+      id: post.id,
+      name: post.name,
+      code: post.code,
+    })) ?? [],
   };
 }
 
@@ -68,6 +74,7 @@ export async function GET() {
       versions: {
         orderBy: [{ version: "desc" }],
       },
+      allowedPosts: true,
     },
   });
 
@@ -99,6 +106,7 @@ export async function POST(request: Request) {
       isActive: boolean;
       fields: unknown;
       publishVersion: boolean;
+      allowedPostIds?: string[];
     }>;
 
     const name = body.name?.trim();
@@ -122,6 +130,9 @@ export async function POST(request: Request) {
         icon: body.icon?.trim() || null,
         isActive: body.isActive ?? true,
         createdById: session.userId,
+        allowedPosts: {
+          connect: (body.allowedPostIds || []).map(id => ({ id })),
+        },
         versions: {
           create: {
             version: 1,
@@ -138,6 +149,7 @@ export async function POST(request: Request) {
         versions: {
           orderBy: [{ version: "desc" }],
         },
+        allowedPosts: true,
       },
     });
 

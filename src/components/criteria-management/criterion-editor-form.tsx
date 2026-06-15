@@ -166,7 +166,7 @@ export function CriterionEditorForm({
             </span>
           </label>
 
-          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm h-fit md:mt-5">
+          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm h-fit md:mt-5 bg-white">
             <input
               type="checkbox"
               checked={formState.isActive}
@@ -176,8 +176,24 @@ export function CriterionEditorForm({
                   isActive: event.target.checked,
                 }))
               }
+              className="size-4 text-teal-600 accent-teal-600"
             />
-            <span>Critère actif</span>
+            <span className="font-medium text-slate-700">Critère actif</span>
+          </label>
+
+          <label className="flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm h-fit md:mt-5 bg-white">
+            <input
+              type="checkbox"
+              checked={formState.requiresPersonnel}
+              onChange={event =>
+                setFormState(current => ({
+                  ...current,
+                  requiresPersonnel: event.target.checked,
+                }))
+              }
+              className="size-4 text-teal-600 accent-teal-600"
+            />
+            <span className="font-medium text-slate-700">Requiert un personnel</span>
           </label>
 
           <div className="flex flex-wrap gap-2 md:col-span-2">

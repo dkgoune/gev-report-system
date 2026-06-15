@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SearchableSelect } from "../ui/searchable-select";
 
 type ValidationRules = {
   minLength: number | null;
@@ -39,6 +40,7 @@ export type BoundIncidentSection = {
   minEntries: number;
   maxEntries: number | null;
   isRequired: boolean;
+  allowedPosts?: Array<{ id: string; name: string; code: string }>;
 };
 
 type EntryValue = Record<string, string | boolean>;
@@ -246,18 +248,16 @@ function BoundFieldInput({
 
   if (field.type === "select") {
     return (
-      <select
+      <SearchableSelect
         value={String(value ?? "")}
-        onChange={event => onChange(event.target.value)}
-        className="h-11 w-full border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
-      >
-        <option value="">Selectionner...</option>
-        {field.options.map(option => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+        onValueChange={value => onChange(value)}
+        options={field.options.map(option => ({
+          value: option,
+          label: option,
+        }))}
+        placeholder="Sélectionner..."
+        emptyMessage="Aucune option disponible"
+      />
     );
   }
 

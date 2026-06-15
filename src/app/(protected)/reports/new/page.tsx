@@ -57,6 +57,7 @@ export default async function NewReportPage({
       },
       assignments: {
         select: {
+          postId: true,
           user: {
             select: {
               id: true,
@@ -116,6 +117,15 @@ export default async function NewReportPage({
       .filter(([, reportId]) => reportId)
   ) as Record<string, string>;
 
+  const userPostIdBySchedule = Object.fromEntries(
+    schedules.map(schedule => {
+      const myAssignment = schedule.assignments.find(
+        assignment => assignment.user.id === session.userId
+      );
+      return [schedule.id, myAssignment?.postId ?? ""];
+    })
+  );
+
   const requestedScheduleId = (query.workScheduleId || "").trim();
   const initialWorkScheduleId = availableSchedules.some(
     schedule => schedule.id === requestedScheduleId
@@ -131,6 +141,7 @@ export default async function NewReportPage({
       initialReportIdBySchedule={initialReportIdBySchedule}
       personnelBySchedule={personnelBySchedule}
       initialIncidentBoundings={initialIncidentBoundings}
+      userPostIdBySchedule={userPostIdBySchedule}
     />
   );
 }

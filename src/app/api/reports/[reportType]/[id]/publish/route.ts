@@ -90,6 +90,7 @@ export async function POST(_: Request, { params }: PublishParams) {
               id: true,
               impact: true,
               maxDaily: true,
+              weight: true,
             },
           },
         },
@@ -159,9 +160,10 @@ export async function POST(_: Request, { params }: PublishParams) {
               evaluatedUserId,
               evaluatingLeaderId: session.userId,
               criterionId: setting.criterionId,
-              score: 1,
+              score: Math.round(Number(setting.criterion.weight)),
               comment:
                 "Evaluation automatique depuis le rapport general publie.",
+              evaluationDate: report.workSchedule.workDate,
             },
           });
 

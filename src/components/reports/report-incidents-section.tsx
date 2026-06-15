@@ -3,10 +3,15 @@ type ReportIncidentEntry = {
   templateNameSnapshot: string;
   valuesJson: unknown;
   schemaSnapshotJson: unknown;
+  template?: {
+    allowedPosts?: Array<{ id: string; name: string; code: string }>;
+  };
 };
 
 type ReportIncidentsSectionProps = {
   incidentEntries: ReportIncidentEntry[];
+  userAssignment: { postId: string; isLeader: boolean; isSubleader: boolean } | null;
+  canReadAllIncidents: boolean;
 };
 
 type IncidentFieldSchemaItem = {
@@ -107,8 +112,27 @@ function buildDisplayFields(entry: ReportIncidentEntry) {
 
 export function ReportIncidentsSection({
   incidentEntries,
+  userAssignment,
+  canReadAllIncidents,
 }: ReportIncidentsSectionProps) {
-  const groupedEntries = incidentEntries.reduce(
+  const visibleEntries = incidentEntries.filter(entry => {
+    if (canReadAllIncidents) {
+      return true;
+    }
+
+    if (userAssignment?.isLeader || userAssignment?.isSubleader) {
+      return true;
+    }
+
+    const allowedPosts = entry.template?.allowedPosts ?? [];
+    if (allowedPosts.length === 0) {
+      return true;
+    }
+
+    return allowedPosts.some(post => post.id === userAssignment?.postId);
+  });
+
+  const groupedEntries = visibleEntries.reduce(
     (acc, entry) => {
       const key = entry.templateNameSnapshot;
       if (!acc[key]) {
@@ -130,7 +154,7 @@ export function ReportIncidentsSection({
         </p>
       </div>
 
-      {incidentEntries.length === 0 ? (
+      {visibleEntries.length === 0 ? (
         <div className="border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">
           Aucun incident lié pour ce rapport.
         </div>

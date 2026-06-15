@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   const endDate = normalizeDateInput(searchParams.get("to"));
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
-  const createdAtFilter: Prisma.DateTimeFilter = {
+  const evaluationDateFilter: Prisma.DateTimeFilter = {
     ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
     ...(endDate ? { lte: new Date(`${endDate}T23:59:59.999Z`) } : {}),
   };
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     criterion: {
       agencyId: session.activeAgencyId,
     },
-    ...(startDate || endDate ? { createdAt: createdAtFilter } : {}),
+    ...(startDate || endDate ? { evaluationDate: evaluationDateFilter } : {}),
   };
 
   if (search) {
@@ -87,6 +87,7 @@ export async function GET(request: Request) {
         name: true,
         impact: true,
         maxDaily: true,
+        requiresPersonnel: true,
       },
     }),
   ]);
@@ -96,7 +97,7 @@ export async function GET(request: Request) {
 
   const evaluations = await prisma.personnelEvaluation.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }],
+    orderBy: [{ evaluationDate: "desc" }, { createdAt: "desc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
     select: {
@@ -104,6 +105,7 @@ export async function GET(request: Request) {
       comment: true,
       createdAt: true,
       updatedAt: true,
+      evaluationDate: true,
       evaluatedUser: {
         select: {
           id: true,
@@ -137,6 +139,7 @@ export async function GET(request: Request) {
       comment: evaluation.comment,
       createdAt: evaluation.createdAt.toISOString(),
       updatedAt: evaluation.updatedAt.toISOString(),
+      evaluationDate: evaluation.evaluationDate.toISOString(),
       evaluatedUser: evaluation.evaluatedUser,
       criterion: evaluation.criterion,
       evaluatingLeader: evaluation.evaluatingLeader,
@@ -168,51 +171,36 @@ export async function POST(request: Request) {
       evaluatedUserId: string;
       criterionId: string;
       comment: string;
+      date?: string;
     }>;
 
-    const evaluatedUserId = body.evaluatedUserId?.trim();
+    const evaluatedUserId = body.evaluatedUserId?.trim() || null;
     const criterionId = body.criterionId?.trim();
     const comment = body.comment?.trim() || null;
+    const dateInput = body.date?.trim();
 
-    if (!evaluatedUserId || !criterionId || !comment) {
+    if (!criterionId || !comment) {
       return NextResponse.json(
         {
-          error: "Le personnel, le critère et l'observation/note sont obligatoires.",
+          error: "Le critère et l'observation/note sont obligatoires.",
         },
         { status: 400 }
       );
     }
 
-    const [evaluatedUser, criterion] = await Promise.all([
-      prisma.user.findFirst({
-        where: {
-          ...buildScopedUserWhere(session),
-          id: evaluatedUserId,
-        },
-        select: {
-          id: true,
-          isActive: true,
-        },
-      }),
-      prisma.criterion.findFirst({
-        where: {
-          id: criterionId,
-          agencyId: session.activeAgencyId,
-        },
-        select: {
-          id: true,
-          isActive: true,
-          maxDaily: true,
-        },
-      }),
-    ]);
-
-    if (!evaluatedUser || !evaluatedUser.isActive) {
-      return NextResponse.json(
-        { error: "Le personnel sélectionné est introuvable ou inactif." },
-        { status: 400 }
-      );
-    }
+    const criterion = await prisma.criterion.findFirst({
+      where: {
+        id: criterionId,
+        agencyId: session.activeAgencyId,
+      },
+      select: {
+        id: true,
+        isActive: true,
+        maxDaily: true,
+        weight: true,
+        requiresPersonnel: true,
+      },
+    });
 
     if (!criterion || !criterion.isActive) {
       return NextResponse.json(
@@ -221,16 +209,54 @@ export async function POST(request: Request) {
       );
     }
 
-    if (criterion.maxDaily !== null) {
-      const now = new Date();
-      const todayStart = new Date(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
-      const todayEnd = new Date(`${now.toISOString().slice(0, 10)}T23:59:59.999Z`);
+    if (criterion.requiresPersonnel && !evaluatedUserId) {
+      return NextResponse.json(
+        { error: "Ce critère nécessite de spécifier un personnel." },
+        { status: 400 }
+      );
+    }
+
+    if (evaluatedUserId) {
+      const evaluatedUser = await prisma.user.findFirst({
+        where: {
+          ...buildScopedUserWhere(session),
+          id: evaluatedUserId,
+        },
+        select: {
+          id: true,
+          isActive: true,
+        },
+      });
+
+      if (!evaluatedUser || !evaluatedUser.isActive) {
+        return NextResponse.json(
+          { error: "Le personnel sélectionné est introuvable ou inactif." },
+          { status: 400 }
+        );
+      }
+    }
+
+    let targetDate = new Date();
+    if (dateInput) {
+      const parsedDate = new Date(dateInput);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        targetDate = parsedDate;
+      }
+    }
+
+    if (evaluatedUserId && criterion.maxDaily !== null) {
+      const year = targetDate.getFullYear();
+      const month = String(targetDate.getMonth() + 1).padStart(2, "0");
+      const day = String(targetDate.getDate()).padStart(2, "0");
+      const dayString = `${year}-${month}-${day}`;
+      const todayStart = new Date(`${dayString}T00:00:00.000Z`);
+      const todayEnd = new Date(`${dayString}T23:59:59.999Z`);
 
       const sameDayCount = await prisma.personnelEvaluation.count({
         where: {
           evaluatedUserId,
           criterionId,
-          createdAt: {
+          evaluationDate: {
             gte: todayStart,
             lte: todayEnd,
           },
@@ -252,14 +278,16 @@ export async function POST(request: Request) {
         evaluatedUserId,
         evaluatingLeaderId: session.userId,
         criterionId,
-        score: 0,
+        score: Math.round(Number(criterion.weight)),
         comment,
+        evaluationDate: targetDate,
       },
       select: {
         id: true,
         comment: true,
         createdAt: true,
         updatedAt: true,
+        evaluationDate: true,
       },
     });
 
@@ -272,6 +300,7 @@ export async function POST(request: Request) {
           ...evaluation,
           createdAt: evaluation.createdAt.toISOString(),
           updatedAt: evaluation.updatedAt.toISOString(),
+          evaluationDate: evaluation.evaluationDate.toISOString(),
         },
       },
       { status: 201 }

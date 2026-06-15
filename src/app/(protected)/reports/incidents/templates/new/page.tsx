@@ -14,14 +14,14 @@ export default async function NewIncidentTemplatePage() {
     redirect("/");
   }
 
-  const { templates } = await getIncidentTemplatesPageData(
+  const { templates, posts } = await getIncidentTemplatesPageData(
     session.activeAgencyId
   );
 
   return (
     <div className="space-y-6">
       <IncidentSectionNav />
-      <IncidentTemplateEditor mode="create" templates={templates} />
+      <IncidentTemplateEditor mode="create" templates={templates} posts={posts} />
     </div>
   );
 }

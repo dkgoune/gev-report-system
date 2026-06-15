@@ -59,6 +59,7 @@ type BindingPayloadItem = {
   isRequired: boolean;
   isActive: boolean;
   templateVersionFields: BindingFieldDefinition[];
+  allowedPosts?: Array<{ id: string; name: string; code: string }>;
 };
 
 type ReportCreationManagerProps = {
@@ -68,6 +69,7 @@ type ReportCreationManagerProps = {
   initialReportIdBySchedule: Record<string, string>;
   personnelBySchedule: Record<string, PersonnelOption[]>;
   initialIncidentBoundings: BindingPayloadItem[];
+  userPostIdBySchedule?: Record<string, string>;
 };
 
 function createInitialFieldValues(fields: ReportFieldDefinition[]) {
@@ -126,6 +128,7 @@ export function ReportCreationManager({
   initialReportIdBySchedule,
   personnelBySchedule,
   initialIncidentBoundings = [],
+  userPostIdBySchedule = {},
 }: ReportCreationManagerProps) {
   const router = useRouter();
   const initialPersonnel = personnelBySchedule[initialWorkScheduleId] ?? [];
@@ -169,6 +172,18 @@ export function ReportCreationManager({
     [currentPersonnel, presentIds]
   );
 
+  const currentUserPostId = userPostIdBySchedule[workScheduleId] ?? null;
+
+  const activeBoundSections = useMemo(() => {
+    const rawSections = boundSectionsByService[serviceId] ?? [];
+    return rawSections.filter(section => {
+      if (!section.allowedPosts || section.allowedPosts.length === 0) {
+        return true;
+      }
+      return section.allowedPosts.some(post => post.id === currentUserPostId);
+    });
+  }, [boundSectionsByService, serviceId, currentUserPostId]);
+
   function handleWorkScheduleChange(nextWorkScheduleId: string) {
     setWorkScheduleId(nextWorkScheduleId);
     setSavedReportId(initialReportIdBySchedule[nextWorkScheduleId] ?? null);
@@ -197,6 +212,7 @@ export function ReportCreationManager({
           minEntries: binding.minEntries,
           maxEntries: binding.maxEntries,
           isRequired: binding.isRequired,
+          allowedPosts: binding.allowedPosts ?? [],
         };
 
         acc[binding.serviceId] = [...(acc[binding.serviceId] ?? []), section];
@@ -309,8 +325,6 @@ export function ReportCreationManager({
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const activeBoundSections = boundSectionsByService[serviceId] ?? [];
 
     for (const section of activeBoundSections) {
       const entries = boundIncidentEntries[section.bindingId] ?? [];
@@ -484,7 +498,7 @@ export function ReportCreationManager({
         </div>
 
         <div className="space-y-5">
-          {(boundSectionsByService[serviceId] ?? []).map(section => (
+          {activeBoundSections.map(section => (
             <ReportBoundIncidentSection
               key={`binding-${section.bindingId}`}
               section={section}

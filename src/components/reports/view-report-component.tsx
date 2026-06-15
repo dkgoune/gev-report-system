@@ -48,6 +48,9 @@ type ViewReport = {
     templateNameSnapshot: string;
     valuesJson: unknown;
     schemaSnapshotJson: unknown;
+    template?: {
+      allowedPosts: Array<{ id: string; name: string; code: string }>;
+    };
   }>;
 };
 
@@ -55,12 +58,16 @@ type ViewReportComponentProps = {
   report: ViewReport;
   canUpdate: boolean;
   canMarkRead: boolean;
+  userAssignment: { postId: string; isLeader: boolean; isSubleader: boolean } | null;
+  canReadAllIncidents: boolean;
 };
 
 export default function ViewReportComponent({
   report,
   canUpdate,
   canMarkRead,
+  userAssignment,
+  canReadAllIncidents,
 }: ViewReportComponentProps) {
   const printableRef = useRef<HTMLDivElement>(null);
 
@@ -264,7 +271,11 @@ export default function ViewReportComponent({
         </div>
       </section>
 
-      <ReportIncidentsSection incidentEntries={report.incidentEntries} />
+      <ReportIncidentsSection
+        incidentEntries={report.incidentEntries}
+        userAssignment={userAssignment}
+        canReadAllIncidents={canReadAllIncidents}
+      />
     </div>
   );
 }

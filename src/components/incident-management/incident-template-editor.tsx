@@ -21,12 +21,14 @@ type IncidentTemplateEditorProps = {
   mode: "create" | "edit";
   templates: IncidentTemplateItem[];
   template?: IncidentTemplateItem;
+  posts?: Array<{ id: string; name: string; code: string }>;
 };
 
 export function IncidentTemplateEditor({
   mode,
   templates,
   template,
+  posts = [],
 }: IncidentTemplateEditorProps) {
   const router = useRouter();
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -42,6 +44,7 @@ export function IncidentTemplateEditor({
           icon: template.icon ?? "",
           isActive: template.isActive,
           publishVersion: true,
+          allowedPostIds: template.allowedPosts?.map(p => p.id) ?? [],
         }
       : defaultTemplateFormState
   );
@@ -171,6 +174,7 @@ export function IncidentTemplateEditor({
           description: templateForm.description,
           icon: templateForm.icon,
           isActive: templateForm.isActive,
+          allowedPostIds: templateForm.allowedPostIds,
         }),
       }
     );
@@ -196,6 +200,7 @@ export function IncidentTemplateEditor({
             icon: templateForm.icon.trim() || null,
             isActive: templateForm.isActive,
             updatedAt: new Date().toISOString(),
+            allowedPosts: posts.filter(p => templateForm.allowedPostIds.includes(p.id)),
           }
         : current
     );
@@ -349,6 +354,50 @@ export function IncidentTemplateEditor({
                 className="w-full border border-slate-300 bg-white px-3 py-2"
               />
             </label>
+
+            {posts && posts.length > 0 && (
+              <div className="space-y-2 md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Postes de travail autorisés à voir et déclarer cet incident
+                </span>
+                <p className="text-xs text-slate-500">
+                  Si aucun poste n'est sélectionné, l'incident sera visible par tous les postes lors de la saisie d'un rapport.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 bg-slate-50 p-3 border border-slate-200">
+                  {posts.map(post => {
+                    const isChecked = templateForm.allowedPostIds.includes(post.id);
+                    return (
+                      <label
+                        key={post.id}
+                        className={`inline-flex items-center gap-2 text-sm p-2 border transition cursor-pointer select-none ${
+                          isChecked
+                            ? "bg-teal-50 border-teal-300 text-teal-900 font-medium"
+                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={event => {
+                            const checked = event.target.checked;
+                            setTemplateForm(current => {
+                              const allowedPostIds = checked
+                                ? [...current.allowedPostIds, post.id]
+                                : current.allowedPostIds.filter(id => id !== post.id);
+                              return { ...current, allowedPostIds };
+                            });
+                          }}
+                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        />
+                        <span>
+                          {post.name} <span className="text-xs text-slate-400">({post.code})</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-4">

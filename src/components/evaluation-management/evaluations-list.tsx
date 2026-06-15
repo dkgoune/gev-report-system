@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -15,6 +20,7 @@ import type { EvaluationCriterionOption, EvaluationItem } from "./types";
 type EvaluationsListProps = {
   criteriaOptions: EvaluationCriterionOption[];
   evaluations: EvaluationItem[];
+  canCancel: boolean;
   filters: {
     criteriaId: string;
     endDate: string;
@@ -30,13 +36,46 @@ type EvaluationsListProps = {
 export function EvaluationsList({
   criteriaOptions,
   evaluations,
+  canCancel,
   filters,
   totalItems,
   totalPages,
 }: EvaluationsListProps) {
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelComment, setCancelComment] = useState("");
+  const [submittingCancel, setSubmittingCancel] = useState(false);
+  const router = useRouter();
+
   const startRow =
     totalItems === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
   const endRow = Math.min(filters.page * filters.pageSize, totalItems);
+
+  async function handleCancelSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cancellingId) return;
+
+    setSubmittingCancel(true);
+    try {
+      const response = await fetch(`/api/evaluations/${cancellingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCancelled: true, comment: cancelComment }),
+      });
+
+      if (!response.ok) {
+        toast.error("Impossible d'annuler l'évaluation.");
+        return;
+      }
+
+      toast.success("Évaluation annulée avec succès.");
+      setCancellingId(null);
+      router.refresh();
+    } catch (err) {
+      toast.error("Une erreur est survenue.");
+    } finally {
+      setSubmittingCancel(false);
+    }
+  }
 
   return (
     <section className="space-y-4">
@@ -46,7 +85,8 @@ export function EvaluationsList({
             Liste des évaluations
           </h2>
           <p className="text-sm text-slate-600">
-            Recherchez et filtrez les observations du personnel par critère et par date.
+            Recherchez et filtrez les observations du personnel par critère et
+            par date.
           </p>
         </div>
 
@@ -77,7 +117,7 @@ export function EvaluationsList({
               <option value="">Tous les critères</option>
               {criteriaOptions.map(criterion => (
                 <option key={criterion.id} value={criterion.id}>
-                  {criterion.name} ({impactLabel(criterion.impact)})
+                  {criterion.name} ({impactLabel(criterion.impact as any)})
                 </option>
               ))}
             </select>
@@ -122,7 +162,10 @@ export function EvaluationsList({
             <Button asChild variant="outline">
               <Link href="/evaluations">Réinitialiser les filtres</Link>
             </Button>
-            <Button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white">
+            <Button
+              type="submit"
+              className="bg-slate-800 hover:bg-slate-900 text-white"
+            >
               Filtrer
             </Button>
           </div>
@@ -140,17 +183,21 @@ export function EvaluationsList({
           <TableHeader className="bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider text-xs">
             <TableRow>
               <TableHead className="px-6 py-4">Personnel</TableHead>
-              <TableHead className="px-6 py-4">Critère d'évaluation</TableHead>
+              <TableHead className="px-6 py-4 max-w-48">
+                Critère d'évaluation
+              </TableHead>
               <TableHead className="px-6 py-4">Observateur</TableHead>
+              <TableHead className="px-6 py-4">Date</TableHead>
               <TableHead className="px-6 py-4">Date de saisie</TableHead>
-              <TableHead className="px-6 py-4">Notes / Observations</TableHead>
+              <TableHead className="px-6 py-4">Notes</TableHead>
+              <TableHead className="px-6 py-4">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-slate-200">
             {evaluations.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={7}
                   className="px-6 py-10 text-center text-slate-500 italic"
                 >
                   Aucune évaluation trouvée.
@@ -165,18 +212,29 @@ export function EvaluationsList({
                 : "bg-amber-50 text-amber-800 border-amber-200";
 
               return (
-                <TableRow key={evaluation.id} className="align-middle hover:bg-slate-50/50 transition-colors">
-                  <TableCell className="px-6 py-4 font-semibold text-slate-900">
-                    {evaluation.evaluatedUser.fullName}
+                <TableRow
+                  key={evaluation.id}
+                  className={`align-middle hover:bg-slate-50/50 transition-colors ${
+                    evaluation.isCancelled ? "bg-rose-50/20 text-slate-400" : ""
+                  }`}
+                >
+                  <TableCell className={`px-6 py-4 font-semibold ${evaluation.isCancelled ? "text-slate-400 line-through" : "text-slate-900"}`}>
+                    {evaluation.evaluatedUser ? evaluation.evaluatedUser.fullName : "Général / Aucun personnel"}
                   </TableCell>
                   <TableCell className="px-6 py-4">
-                    <p className="font-semibold text-slate-900">{evaluation.criterion.name}</p>
-                    <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded border mt-1 ${impactClasses}`}>
-                      {impactLabel(evaluation.criterion.impact)}
-                    </span>
+                    <p className={`font-semibold max-w-56 wrap-break-word whitespace-normal ${evaluation.isCancelled ? "text-slate-400 line-through" : "text-slate-900"}`}>
+                      {evaluation.criterion.name}
+                    </p>
+                    {!evaluation.isCancelled && (
+                      <span
+                        className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded border mt-1 ${impactClasses}`}
+                      >
+                        {impactLabel(evaluation.criterion.impact as any)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="px-6 py-4 text-slate-700">
-                    <p className="font-medium text-slate-900">
+                    <p className={`font-medium ${evaluation.isCancelled ? "text-slate-400" : "text-slate-900"}`}>
                       {evaluation.evaluatingLeader.fullName}
                     </p>
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5">
@@ -184,12 +242,45 @@ export function EvaluationsList({
                     </p>
                   </TableCell>
                   <TableCell className="px-6 py-4 text-slate-500 text-xs">
+                    {formatDateTime(evaluation.evaluationDate)}
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-slate-500 text-xs">
                     {formatDateTime(evaluation.createdAt)}
                   </TableCell>
                   <TableCell className="px-6 py-4 text-slate-700">
-                    <div className="max-w-md whitespace-normal text-sm leading-relaxed text-slate-600 bg-slate-50/50 p-2 border border-slate-100 rounded">
-                      {evaluation.comment || <span className="text-slate-400 italic">Aucune note fournie</span>}
+                    <div className={`max-w-md whitespace-normal text-sm leading-relaxed p-2 border rounded ${evaluation.isCancelled ? "bg-slate-100/50 text-slate-400 border-slate-200" : "bg-slate-50/50 text-slate-600 border-slate-100"}`}>
+                      {evaluation.comment || (
+                        <span className="text-slate-400 italic">
+                          Aucune note fournie
+                        </span>
+                      )}
                     </div>
+                    {evaluation.isCancelled && evaluation.cancelledAt && (
+                      <p className="text-[10px] text-rose-500 mt-1 font-medium italic">
+                        Annulée le {formatDateTime(evaluation.cancelledAt)}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-slate-700">
+                    {evaluation.isCancelled ? (
+                      <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded border border-rose-200 bg-rose-50/50 text-rose-800">
+                        Annulée
+                      </span>
+                    ) : canCancel ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800 h-8"
+                        onClick={() => {
+                          setCancellingId(evaluation.id);
+                          setCancelComment(evaluation.comment || "");
+                        }}
+                      >
+                        Annuler
+                      </Button>
+                    ) : (
+                      <span className="text-slate-400 text-xs">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -229,6 +320,49 @@ export function EvaluationsList({
           </div>
         </div>
       </div>
+
+      {cancellingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 animate-in fade-in-50 duration-200">
+          <div className="w-full max-w-md border border-slate-200 bg-white p-6 shadow-lg rounded-lg">
+            <h3 className="text-lg font-bold text-slate-900">
+              Annuler l'évaluation
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Cette action annulera l'évaluation et exclura son score du total de l'agent.
+              Vous pouvez également modifier les notes de l'observation pour y ajouter le motif de l'annulation.
+            </p>
+            <form onSubmit={handleCancelSubmit} className="mt-4 space-y-4">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700 block">Notes / Motif d'annulation</span>
+                <textarea
+                  value={cancelComment}
+                  onChange={e => setCancelComment(e.target.value)}
+                  className="w-full border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500 rounded min-h-24"
+                  placeholder="Ex: Erreur de saisie rectifiée, motif..."
+                  required
+                />
+              </label>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCancellingId(null)}
+                  disabled={submittingCancel}
+                >
+                  Fermer
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-rose-600 hover:bg-rose-700 text-white"
+                  disabled={submittingCancel}
+                >
+                  {submittingCancel ? "Annulation..." : "Confirmer l'annulation"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -49,11 +49,19 @@ export function EvaluationForm({
   }, [groupedCriteria]);
 
   const userOptions = useMemo(() => {
-    return users.map(user => ({
+    const options = users.map(user => ({
       value: user.id,
       label: buildUserLabel(user),
       keywords: [user.fullName],
     }));
+    return [
+      {
+        value: "",
+        label: "Aucun personnel (Évaluation générale / Incident)",
+        keywords: ["aucun", "general", "incident"],
+      },
+      ...options,
+    ];
   }, [users]);
 
   return (
@@ -63,14 +71,17 @@ export function EvaluationForm({
           Nouvelle évaluation
         </h3>
         <p className="text-xs text-slate-500 mt-1">
-          Sélectionnez un membre du personnel, choisissez un critère actif, puis enregistrez vos notes et observations du jour.
+          Sélectionnez un membre du personnel (optionnel), choisissez un critère actif, puis
+          enregistrez vos notes et observations du jour.
         </p>
       </div>
 
       <form className="space-y-5" onSubmit={onSubmit}>
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-2 text-sm">
-            <span className="font-semibold text-slate-700 block">Personnel *</span>
+            <span className="font-semibold text-slate-700 block">
+              Personnel (Optionnel)
+            </span>
             <SearchableSelect
               value={formState.evaluatedUserId}
               onValueChange={value => onChange("evaluatedUserId", value)}
@@ -82,7 +93,9 @@ export function EvaluationForm({
           </div>
 
           <div className="space-y-2 text-sm">
-            <span className="font-semibold text-slate-700 block">Critère *</span>
+            <span className="font-semibold text-slate-700 block">
+              Critère *
+            </span>
             <SearchableSelect
               value={formState.criterionId}
               onValueChange={value => onChange("criterionId", value)}
@@ -93,8 +106,23 @@ export function EvaluationForm({
             />
           </div>
 
+          <label className="space-y-2 text-sm block">
+            <span className="font-semibold text-slate-700 block">
+              Date et heure d'évaluation *
+            </span>
+            <input
+              type="datetime-local"
+              value={formState.date}
+              onChange={event => onChange("date", event.target.value)}
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 rounded h-9.5"
+              required
+            />
+          </label>
+
           <label className="space-y-2 text-sm sm:col-span-2 block">
-            <span className="font-semibold text-slate-700 block">Notes / Observations *</span>
+            <span className="font-semibold text-slate-700 block">
+              Notes / Observations *
+            </span>
             <textarea
               value={formState.comment}
               onChange={event => onChange("comment", event.target.value)}

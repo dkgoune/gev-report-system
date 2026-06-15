@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { useRef } from "react";
+import { useReactToPrint } from "react-to-print";
 import {
   BarChart3,
   Gauge,
   ListChecks,
+  Printer,
   Target,
   TrendingUp,
   Users,
@@ -102,6 +107,12 @@ function SectionFrame({
 }
 
 export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const onPrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `scores-evaluations-${snapshot.range.from}-to-${snapshot.range.to}`,
+  });
+
   const groupBreakdown = snapshot.groupStats
     .slice(0, 8)
     .map(item => ({ label: item.groupName, value: item.evaluationCount }));
@@ -262,10 +273,19 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
         </div>
 
         <article className="overflow-hidden border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-900">
               Scores par travailleur
             </h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void onPrint()}
+            >
+              <Printer className="mr-1.5 size-3.5" />
+              Imprimer la liste
+            </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -289,7 +309,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {snapshot.workerStats.slice(0, 12).map(worker => (
+                {snapshot.workerStats.map(worker => (
                   <tr key={worker.userId}>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="font-medium text-slate-900">
@@ -314,6 +334,42 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
             </table>
           </div>
         </article>
+
+        {/* Hidden printable copy of the scores list */}
+        <div className="hidden">
+          <div ref={printRef} className="p-8 bg-white text-slate-900 space-y-6">
+            <header className="border-b border-slate-200 pb-4">
+              <h1 className="text-2xl font-extrabold uppercase tracking-wider text-slate-800">
+                Scores par Travailleur
+              </h1>
+              <p className="text-sm text-slate-600 mt-1">
+                Période: {snapshot.range.description}
+              </p>
+            </header>
+            <table className="w-full border-collapse border border-slate-300 text-xs text-left">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-300 font-semibold text-slate-800">
+                  <th className="border-r border-slate-300 p-2">Personnel</th>
+                  <th className="border-r border-slate-300 p-2">Poste</th>
+                  <th className="border-r border-slate-300 p-2">Evaluations</th>
+                  <th className="border-r border-slate-300 p-2">Score total</th>
+                  <th className="p-2">Moyenne</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.workerStats.map(worker => (
+                  <tr key={worker.userId} className="border-b border-slate-200">
+                    <td className="border-r border-slate-200 p-2 font-semibold">{worker.fullName}</td>
+                    <td className="border-r border-slate-200 p-2">{worker.groupName}</td>
+                    <td className="border-r border-slate-200 p-2">{formatInteger(worker.evaluationCount)}</td>
+                    <td className="border-r border-slate-200 p-2">{formatSigned(worker.totalScore)}</td>
+                    <td className="p-2">{formatSigned(worker.averageScore)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </SectionFrame>
 
       <SectionFrame

@@ -19,6 +19,7 @@ function serializeTemplate(template: {
     createdAt: Date;
     fieldsJson: unknown;
   }>;
+  allowedPosts?: Array<{ id: string; name: string; code: string }>;
 }) {
   return {
     id: template.id,
@@ -37,6 +38,11 @@ function serializeTemplate(template: {
       createdAt: version.createdAt.toISOString(),
       fields: sanitizeIncidentFields(version.fieldsJson),
     })),
+    allowedPosts: template.allowedPosts?.map(post => ({
+      id: post.id,
+      name: post.name,
+      code: post.code,
+    })) ?? [],
   };
 }
 
@@ -53,7 +59,7 @@ function serializeBinding(binding: {
   createdAt: Date;
   updatedAt: Date;
   service: { name: string; code: string };
-  template: { name: string };
+  template: { name: string; allowedPosts?: Array<{ id: string; name: string; code: string }> };
   templateVersion: {
     version: number;
     status: "draft" | "published" | "archived";
@@ -80,24 +86,45 @@ function serializeBinding(binding: {
     isActive: binding.isActive,
     createdAt: binding.createdAt.toISOString(),
     updatedAt: binding.updatedAt.toISOString(),
+    allowedPosts: binding.template.allowedPosts?.map(p => ({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+    })) ?? [],
   };
 }
 
 export async function getIncidentTemplatesPageData(agencyId: string) {
-  const templates = await prisma.incidentTemplate.findMany({
-    where: {
-      agencyId,
-    },
-    orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    include: {
-      versions: {
-        orderBy: [{ version: "desc" }],
+  const [templates, posts] = await Promise.all([
+    prisma.incidentTemplate.findMany({
+      where: {
+        agencyId,
       },
-    },
-  });
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      include: {
+        versions: {
+          orderBy: [{ version: "desc" }],
+        },
+        allowedPosts: true,
+      },
+    }),
+    prisma.workPost.findMany({
+      where: {
+        agencyId,
+        isActive: true,
+      },
+      orderBy: [{ order: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
+    }),
+  ]);
 
   return {
     templates: templates.map(serializeTemplate),
+    posts,
   };
 }
 
@@ -105,17 +132,32 @@ export async function getIncidentTemplateDetailPageData(
   agencyId: string,
   templateId: string
 ) {
-  const templates = await prisma.incidentTemplate.findMany({
-    where: {
-      agencyId,
-    },
-    orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    include: {
-      versions: {
-        orderBy: [{ version: "desc" }],
+  const [templates, posts] = await Promise.all([
+    prisma.incidentTemplate.findMany({
+      where: {
+        agencyId,
       },
-    },
-  });
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      include: {
+        versions: {
+          orderBy: [{ version: "desc" }],
+        },
+        allowedPosts: true,
+      },
+    }),
+    prisma.workPost.findMany({
+      where: {
+        agencyId,
+        isActive: true,
+      },
+      orderBy: [{ order: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
+    }),
+  ]);
 
   const serializedTemplates = templates.map(serializeTemplate);
   const template =
@@ -124,6 +166,7 @@ export async function getIncidentTemplateDetailPageData(
   return {
     template,
     templates: serializedTemplates,
+    posts,
   };
 }
 
@@ -171,7 +214,12 @@ export async function getIncidentBindingsPageData(agencyId: string) {
           select: { name: true, code: true },
         },
         template: {
-          select: { name: true },
+          select: {
+            name: true,
+            allowedPosts: {
+              select: { id: true, name: true, code: true },
+            },
+          },
         },
         templateVersion: {
           select: {
@@ -241,7 +289,12 @@ export async function getAgencyIncidentBindings(agencyId: string) {
         select: { name: true, code: true },
       },
       template: {
-        select: { name: true },
+        select: {
+          name: true,
+          allowedPosts: {
+            select: { id: true, name: true, code: true },
+          },
+        },
       },
       templateVersion: {
         select: {

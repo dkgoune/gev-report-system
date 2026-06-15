@@ -40,6 +40,7 @@ export type IncidentTemplateItem = {
   createdAt: string;
   updatedAt: string;
   versions: IncidentTemplateVersionItem[];
+  allowedPosts?: Array<{ id: string; name: string; code: string }>;
 };
 
 export type IncidentServiceOption = {

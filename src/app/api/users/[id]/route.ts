@@ -60,6 +60,21 @@ export async function PATCH(request: Request, { params }: Params) {
         );
       }
       payload.username = username;
+
+      // Check if username is used by another user
+      const isUsernameIsUsed = await prisma.user.findFirst({
+        where: {
+          username: { equals: username, mode: "insensitive" },
+          id: { not: id },
+        },
+        select: { id: true },
+      });
+      if (isUsernameIsUsed) {
+        return NextResponse.json(
+          { error: "Ce nom utilisateur est déjà utilisé." },
+          { status: 409 }
+        );
+      }
     }
 
     if (typeof body.isActive === "boolean") {

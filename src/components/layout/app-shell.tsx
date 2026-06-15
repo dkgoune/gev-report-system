@@ -161,6 +161,12 @@ const navItems: NavItem[] = [
         permissions: ["report_create"],
       },
       {
+        href: "/reports/reported-incidents",
+        match: "exact",
+        title: "Incidents signalés",
+        permissions: ["report_read"],
+      },
+      {
         href: "/reports/incidents",
         match: "exact",
         title: "Definitions d'incidents",

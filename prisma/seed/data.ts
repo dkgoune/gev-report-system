@@ -64,6 +64,7 @@ export type SeedCriterionDefinition = {
   weight: string;
   maxDaily: number;
   isActive: boolean;
+  requiresPersonnel?: boolean;
   createdByKey: string;
 };
 

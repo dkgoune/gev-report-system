@@ -51,10 +51,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       description: string;
       permissions: string[];
       isActive: boolean;
+      allowedToViewRoleIds?: string[];
     }>;
 
     const name = body.name?.trim();
-    const description = body.description !== undefined ? body.description?.trim() || null : undefined;
+    const description =
+      body.description !== undefined
+        ? body.description?.trim() || null
+        : undefined;
     const permissionsInput = body.permissions;
     const isActive = body.isActive;
 
@@ -71,6 +75,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       description?: string | null;
       permissions?: UserPermission[];
       isActive?: boolean;
+      allowedToViewReportsOf?: {
+        set: Array<{ id: string }>;
+      };
     } = {};
 
     if (name !== undefined) {
@@ -111,7 +118,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       const { permissions, invalid } = parseUserPermissions(permissionsInput);
       if (invalid.length > 0) {
         return NextResponse.json(
-          { error: `Certaines permissions sont invalides : ${invalid.join(", ")}` },
+          {
+            error: `Certaines permissions sont invalides : ${invalid.join(", ")}`,
+          },
           { status: 400 }
         );
       }
@@ -120,6 +129,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     if (isActive !== undefined) {
       dataToUpdate.isActive = isActive;
+    }
+
+    if (body.allowedToViewRoleIds !== undefined) {
+      dataToUpdate.allowedToViewReportsOf = {
+        set: body.allowedToViewRoleIds.map((id: string) => ({ id })),
+      };
     }
 
     const updatedRole = await prisma.role.update({
@@ -168,7 +183,8 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     if (activeAssignmentsCount > 0) {
       return NextResponse.json(
         {
-          error: "Ce rôle est actuellement attribué à un ou plusieurs personnels. Retirez-le d'abord pour pouvoir le supprimer.",
+          error:
+            "Ce rôle est actuellement attribué à un ou plusieurs personnels. Retirez-le d'abord pour pouvoir le supprimer.",
         },
         { status: 400 }
       );
@@ -178,7 +194,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       where: { id },
     });
 
-    return NextResponse.json({ ok: true, message: "Rôle supprimé avec succès." });
+    return NextResponse.json({
+      ok: true,
+      message: "Rôle supprimé avec succès.",
+    });
   } catch (error) {
     console.error("Error deleting role:", error);
     return NextResponse.json(

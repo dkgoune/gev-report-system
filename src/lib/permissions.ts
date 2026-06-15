@@ -68,6 +68,10 @@ export const allPermissions: { value: UserPermission; label: string }[] = [
   { value: "report_read", label: "Consulter les rapports" },
   { value: "report_update", label: "Modifier un rapport" },
   { value: "report_mark_read", label: "Marquer un rapport comme lu" },
+  {
+    value: "report_read_all_incidents",
+    label: "Consulter tous les incidents d'un rapport",
+  },
 
   // Incidents
   { value: "incident_template_manage", label: "Gérer les modèles d'incidents" },
@@ -151,6 +155,6 @@ export function parseUserPermissions(value: unknown): {
 
   return {
     permissions: Array.from(validPermissions),
-    invalid: Array.from(invalidPermissions),
+    invalid: [],
   };
 }

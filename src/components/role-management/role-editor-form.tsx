@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {Square, CheckSquare } from "lucide-react";
+import { Square, CheckSquare } from "lucide-react";
 
 type RoleFormState = {
   name: string;
   description: string;
   permissions: string[];
+  allowedToViewRoleIds: string[];
 };
 
 type RoleEditorFormProps = {
@@ -19,6 +20,7 @@ type RoleEditorFormProps = {
   roleId?: string;
   title: string;
   description: string;
+  availableRoles: Array<{ id: string; name: string }>;
 };
 
 type PermissionItem = {
@@ -39,20 +41,33 @@ const permissionGroups: PermissionGroup[] = [
     permissions: [
       { value: "dashboard_view", label: "Vue du tableau de bord" },
       { value: "dashboard_analytics_view", label: "Vue des analyses globales" },
-      { value: "dashboard_evaluations_view", label: "Vue des analyses des évaluations" },
+      {
+        value: "dashboard_evaluations_view",
+        label: "Vue des analyses des évaluations",
+      },
     ],
   },
   {
     title: "Gestion des Personnels & Rôles",
-    description: "Création, modification, blocage et gestion des rôles de personnels",
+    description:
+      "Création, modification, blocage et gestion des rôles de personnels",
     permissions: [
       { value: "user_create", label: "Créer un personnel" },
       { value: "user_read", label: "Consulter la liste des personnels" },
       { value: "user_update", label: "Modifier les fiches des personnels" },
       { value: "user_delete", label: "Supprimer un personnel" },
-      { value: "user_reset_password", label: "Réinitialiser les mots de passe" },
-      { value: "user_enable_disable", label: "Activer / Désactiver des comptes" },
-      { value: "user_manage_permissions", label: "Gérer les rôles et permissions" },
+      {
+        value: "user_reset_password",
+        label: "Réinitialiser les mots de passe",
+      },
+      {
+        value: "user_enable_disable",
+        label: "Activer / Désactiver des comptes",
+      },
+      {
+        value: "user_manage_permissions",
+        label: "Gérer les rôles et permissions",
+      },
     ],
   },
   {
@@ -63,7 +78,10 @@ const permissionGroups: PermissionGroup[] = [
       { value: "service_read", label: "Consulter les services" },
       { value: "service_update", label: "Modifier un service" },
       { value: "service_delete", label: "Supprimer un service" },
-      { value: "service_enable_disable", label: "Activer / Désactiver un service" },
+      {
+        value: "service_enable_disable",
+        label: "Activer / Désactiver un service",
+      },
       { value: "post_create", label: "Créer un poste" },
       { value: "post_read", label: "Consulter les postes" },
       { value: "post_update", label: "Modifier un poste" },
@@ -73,27 +91,48 @@ const permissionGroups: PermissionGroup[] = [
   },
   {
     title: "Planning de Travail",
-    description: "Planification des agents et publication des plannings de service",
+    description:
+      "Planification des agents et publication des plannings de service",
     permissions: [
       { value: "work_schedule_create", label: "Créer un planning" },
       { value: "work_schedule_read", label: "Consulter les plannings" },
       { value: "work_schedule_update", label: "Modifier un planning" },
       { value: "work_schedule_delete", label: "Supprimer un planning" },
-      { value: "work_schedule_publish", label: "Publier officiellement un planning" },
-      { value: "work_schedule_print", label: "Imprimer les fiches de planning" },
+      {
+        value: "work_schedule_publish",
+        label: "Publier officiellement un planning",
+      },
+      {
+        value: "work_schedule_print",
+        label: "Imprimer les fiches de planning",
+      },
     ],
   },
   {
     title: "Rapports d'Incidents & Journaliers",
-    description: "Saisie et lecture des rapports journaliers et paramétrage d'incidents",
+    description:
+      "Saisie et lecture des rapports journaliers et paramétrage d'incidents",
     permissions: [
       { value: "report_create", label: "Rédiger un rapport journalier" },
       { value: "report_read", label: "Consulter les rapports journaliers" },
       { value: "report_update", label: "Modifier un rapport" },
       { value: "report_mark_read", label: "Marquer les rapports comme lus" },
-      { value: "incident_template_manage", label: "Créer et modifier des modèles d'incidents" },
-      { value: "incident_template_read", label: "Consulter les modèles d'incidents" },
-      { value: "incident_binding_manage", label: "Associer des incidents aux services" },
+      {
+        value: "report_read_all_incidents",
+        label: "Consulter tous les incidents d'un rapport",
+      },
+      {
+        value: "incident_template_manage",
+        label: "Créer et modifier des modèles d'incidents",
+      },
+      {
+        value: "incident_template_read",
+        label: "Consulter les modèles d'incidents",
+      },
+      {
+        value: "incident_binding_manage",
+        label: "Associer des incidents aux services",
+      },
     ],
   },
   {
@@ -103,34 +142,65 @@ const permissionGroups: PermissionGroup[] = [
       { value: "criteria_create", label: "Créer un critère d'évaluation" },
       { value: "criteria_read", label: "Consulter les critères" },
       { value: "criteria_update", label: "Modifier un critère" },
-      { value: "criteria_enable_disable", label: "Activer / Désactiver un critère" },
+      {
+        value: "criteria_enable_disable",
+        label: "Activer / Désactiver un critère",
+      },
       { value: "evaluation_create", label: "Évaluer un agent (saisir score)" },
-      { value: "evaluation_read", label: "Consulter l'historique des évaluations" },
+      {
+        value: "evaluation_read",
+        label: "Consulter l'historique des évaluations",
+      },
     ],
   },
   {
     title: "Signatures de Bordereaux",
-    description: "Suivi des feuilles de route, numéros de bordereaux et arrivées de bus",
+    description:
+      "Suivi des feuilles de route, numéros de bordereaux et arrivées de bus",
     permissions: [
       { value: "signature_create", label: "Créer une ligne de signature" },
-      { value: "signature_read", label: "Consulter les feuilles de signatures" },
-      { value: "signature_update", label: "Modifier les informations de signature" },
+      {
+        value: "signature_read",
+        label: "Consulter les feuilles de signatures",
+      },
+      {
+        value: "signature_update",
+        label: "Modifier les informations de signature",
+      },
     ],
   },
   {
     title: "Paramètres Globaux",
-    description: "Configuration des règles d'attribution de scores automatiques de présence",
+    description:
+      "Configuration des règles d'attribution de scores automatiques de présence",
     permissions: [
-      { value: "settings_attendance_rules_view", label: "Consulter les règles d'absence/présence" },
-      { value: "settings_attendance_rules_create", label: "Créer une règle d'absence" },
-      { value: "settings_attendance_rules_update", label: "Modifier une règle" },
-      { value: "settings_attendance_rules_delete", label: "Supprimer une règle" },
-      { value: "settings_attendance_rules_enable_disable", label: "Activer / Désactiver une règle" },
+      {
+        value: "settings_attendance_rules_view",
+        label: "Consulter les règles d'absence/présence",
+      },
+      {
+        value: "settings_attendance_rules_create",
+        label: "Créer une règle d'absence",
+      },
+      {
+        value: "settings_attendance_rules_update",
+        label: "Modifier une règle",
+      },
+      {
+        value: "settings_attendance_rules_delete",
+        label: "Supprimer une règle",
+      },
+      {
+        value: "settings_attendance_rules_enable_disable",
+        label: "Activer / Désactiver une règle",
+      },
     ],
   },
 ];
 
-const allPermissionValues = permissionGroups.flatMap(g => g.permissions.map(p => p.value));
+const allPermissionValues = permissionGroups.flatMap(g =>
+  g.permissions.map(p => p.value)
+);
 
 export function RoleEditorForm({
   mode,
@@ -138,6 +208,7 @@ export function RoleEditorForm({
   roleId,
   title,
   description,
+  availableRoles,
 }: RoleEditorFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState<RoleFormState>(initialState);
@@ -161,7 +232,9 @@ export function RoleEditorForm({
     setFormState(current => {
       const currentPermissions = current.permissions || [];
       const filtered = currentPermissions.filter(p => !groupValues.includes(p));
-      const nextPermissions = checked ? [...filtered, ...groupValues] : filtered;
+      const nextPermissions = checked
+        ? [...filtered, ...groupValues]
+        : filtered;
       return { ...current, permissions: nextPermissions };
     });
   }
@@ -264,6 +337,53 @@ export function RoleEditorForm({
           </div>
         </section>
 
+        <section className="border border-slate-200 bg-slate-50 p-6 space-y-4">
+          <h3 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2">
+            Limitation de Visibilité des Rapports (Optionnel)
+          </h3>
+          <p className="text-xs text-slate-600">
+            Par défaut, un personnel disposant de la permission de lecture peut
+            voir tous les rapports. Si vous sélectionnez des rôles ci-dessous,
+            les personnels possédant ce rôle ne pourront voir que les rapports
+            rédigés par des agents ayant les rôles sélectionnés (ainsi que leurs
+            propres rapports).
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {availableRoles.map(role => {
+              const isSelected =
+                formState.allowedToViewRoleIds?.includes(role.id) || false;
+              return (
+                <label
+                  key={role.id}
+                  className={`flex items-start gap-3 border p-2.5 rounded-md cursor-pointer transition-colors ${
+                    isSelected
+                      ? "border-teal-200 bg-teal-50/10 hover:bg-teal-50/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => {
+                      setFormState(current => {
+                        const list = current.allowedToViewRoleIds || [];
+                        const next = list.includes(role.id)
+                          ? list.filter(id => id !== role.id)
+                          : [...list, role.id];
+                        return { ...current, allowedToViewRoleIds: next };
+                      });
+                    }}
+                    className="mt-0.5 size-4 text-teal-600 accent-teal-600 rounded cursor-pointer"
+                  />
+                  <div className="text-xs font-semibold text-slate-800">
+                    {role.name}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
             <div>
@@ -271,7 +391,8 @@ export function RoleEditorForm({
                 Permissions Associées
               </h3>
               <p className="text-xs text-slate-600">
-                Sélectionnez les permissions que ce rôle accorde au personnel dans l'agence.
+                Sélectionnez les permissions que ce rôle accorde au personnel
+                dans l'agence.
               </p>
             </div>
 
@@ -298,7 +419,9 @@ export function RoleEditorForm({
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {permissionGroups.map(group => {
               const groupValues = group.permissions.map(p => p.value);
-              const groupSelectedCount = groupValues.filter(v => permissions.includes(v)).length;
+              const groupSelectedCount = groupValues.filter(v =>
+                permissions.includes(v)
+              ).length;
               const allChecked = groupSelectedCount === groupValues.length;
 
               return (

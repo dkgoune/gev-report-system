@@ -118,6 +118,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if username is used
+    const isUsernameIsUsed = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (isUsernameIsUsed) {
+      return NextResponse.json(
+        { error: "Ce nom utilisateur est déjà utilisé." },
+        { status: 409 }
+      );
+    }
+
     const user = await prisma.user.create({
       data: {
         fullName,

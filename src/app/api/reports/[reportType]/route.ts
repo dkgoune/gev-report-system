@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { Prisma } from "@/generated/prisma/browser";
 import { hasPermission } from "@/lib/permissions";
+import { getReportViewLimits } from "@/lib/report-view-limit";
 
 type ReportWriteBody = {
   reportId?: string;
@@ -126,6 +127,42 @@ export async function GET(
       ? Number(searchParams.get("pageSize") || "20")
       : 20;
 
+    const limits = await getReportViewLimits(session);
+
+    const andConditions: any[] = [];
+
+    if (q) {
+      andConditions.push({
+        OR: [
+          { ambianceGenerale: { contains: q, mode: "insensitive" } },
+          { problemesRencontres: { contains: q, mode: "insensitive" } },
+          { observationGeneral: { contains: q, mode: "insensitive" } },
+        ],
+      });
+    }
+
+    if (limits.hasLimit) {
+      andConditions.push({
+        OR: [
+          { reportedById: session.userId },
+          {
+            reportedBy: {
+              memberships: {
+                some: {
+                  agencyId: session.activeAgencyId,
+                  roles: {
+                    some: {
+                      id: { in: limits.allowedRoleIds },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
     const where: Prisma.GeneralReportWhereInput = {
       workSchedule: {
         agencyId: session.activeAgencyId,
@@ -133,12 +170,8 @@ export async function GET(
       },
     };
 
-    if (q) {
-      where.OR = [
-        { ambianceGenerale: { contains: q, mode: "insensitive" } },
-        { problemesRencontres: { contains: q, mode: "insensitive" } },
-        { observationGeneral: { contains: q, mode: "insensitive" } },
-      ];
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const totalItems = await prisma.generalReport.count({ where });

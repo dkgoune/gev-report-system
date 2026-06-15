@@ -7,6 +7,7 @@ export type EvaluationCriterionOption = {
   id: string;
   name: string;
   impact: string;
+  requiresPersonnel: boolean;
 };
 
 export type EvaluationItem = {
@@ -14,11 +15,14 @@ export type EvaluationItem = {
   comment: string | null;
   createdAt: string;
   updatedAt: string;
+  evaluationDate: string;
+  isCancelled: boolean;
+  cancelledAt: string | null;
   evaluatedUser: {
     id: string;
     fullName: string;
     isActive: boolean;
-  };
+  } | null;
   criterion: {
     id: string;
     name: string;
@@ -36,4 +40,5 @@ export type EvaluationFormState = {
   evaluatedUserId: string;
   criterionId: string;
   comment: string;
+  date: string;
 };

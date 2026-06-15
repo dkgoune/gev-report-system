@@ -44,11 +44,13 @@ export async function POST(request: Request) {
       name: string;
       description: string;
       permissions: string[];
+      allowedToViewRoleIds?: string[];
     }>;
 
     const name = body.name?.trim();
     const description = body.description?.trim() || null;
     const permissionsInput = body.permissions || [];
+    const allowedToViewRoleIds = body.allowedToViewRoleIds || [];
 
     if (!name) {
       return NextResponse.json(
@@ -60,7 +62,9 @@ export async function POST(request: Request) {
     const { permissions, invalid } = parseUserPermissions(permissionsInput);
     if (invalid.length > 0) {
       return NextResponse.json(
-        { error: `Certaines permissions sont invalides : ${invalid.join(", ")}` },
+        {
+          error: `Certaines permissions sont invalides : ${invalid.join(", ")}`,
+        },
         { status: 400 }
       );
     }
@@ -90,6 +94,9 @@ export async function POST(request: Request) {
         permissions,
         agencyId: session.activeAgencyId,
         createdById: session.userId,
+        allowedToViewReportsOf: {
+          connect: allowedToViewRoleIds.map((id: string) => ({ id })),
+        },
       },
     });
 
@@ -102,4 +109,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

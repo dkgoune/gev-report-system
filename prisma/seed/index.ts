@@ -317,6 +317,7 @@ export async function runSeed() {
           weight: criterion.weight,
           maxDaily: criterion.maxDaily,
           isActive: criterion.isActive,
+          requiresPersonnel: criterion.requiresPersonnel ?? true,
           createdById: getRequiredId(
             userIdsByKey,
             criterion.createdByKey,

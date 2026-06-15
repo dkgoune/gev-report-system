@@ -6,6 +6,7 @@ export const defaultCriterionFormState: CriterionFormState = {
   weight: "1.00",
   maxDaily: "",
   isActive: true,
+  requiresPersonnel: true,
 };
 
 export const impactOptions: Array<{ value: CriterionImpact; label: string }> = [
