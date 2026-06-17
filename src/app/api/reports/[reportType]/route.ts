@@ -295,12 +295,6 @@ export async function POST(
               userId: true,
             },
           },
-          generalReport: {
-            select: {
-              id: true,
-              status: true,
-            },
-          },
         },
       });
 
@@ -313,16 +307,45 @@ export async function POST(
         throw new Error("Le planning sélectionné n'est plus éligible.");
       }
 
-      if (schedule.generalReport?.status === "published") {
-        throw new Error("Ce rapport est déjà publié.");
-      }
+      let existingReport = null;
+      if (reportId) {
+        existingReport = await tx.generalReport.findFirst({
+          where: {
+            id: reportId,
+            reportedById: session.userId,
+            workScheduleId: workScheduleId,
+            workSchedule: {
+              agencyId: session.activeAgencyId,
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        });
 
-      if (
-        reportId &&
-        schedule.generalReport &&
-        schedule.generalReport.id !== reportId
-      ) {
-        throw new Error("Rapport introuvable pour ce planning.");
+        if (!existingReport) {
+          throw new Error("Rapport introuvable pour ce planning.");
+        }
+
+        if (existingReport.status === "published") {
+          throw new Error("Ce rapport est déjà publié.");
+        }
+      } else {
+        // Enforce: each user can have only one report per workday
+        const reportOnSameDay = await tx.generalReport.findFirst({
+          where: {
+            reportedById: session.userId,
+            workSchedule: {
+              workDate: schedule.workDate,
+              agencyId: session.activeAgencyId,
+            },
+          },
+        });
+
+        if (reportOnSameDay) {
+          throw new Error("Vous avez déjà créé un rapport pour cette journée de travail.");
+        }
       }
 
       const validScheduleUserIds = new Set(
@@ -356,9 +379,9 @@ export async function POST(
             userId => !presentIdSet.has(userId)
           );
 
-      const report = schedule.generalReport
+      const report = existingReport
         ? await tx.generalReport.update({
-            where: { id: schedule.generalReport.id },
+            where: { id: existingReport.id },
             data: {
               ambianceGenerale: toTrimmedOrNull(body.ambianceGenerale),
               problemesRencontres: toTrimmedOrNull(body.problemesRencontres),

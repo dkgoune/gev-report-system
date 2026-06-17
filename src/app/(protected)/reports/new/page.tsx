@@ -29,21 +29,44 @@ export default async function NewReportPage({
 
   const now = new Date();
   const todayIso = now.toISOString().slice(0, 10);
-  const earliestIso = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const earliestIso = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) // 7 days
     .toISOString()
     .slice(0, 10);
   const todayDate = new Date(`${todayIso}T00:00:00.000Z`);
   const earliestDate = new Date(`${earliestIso}T00:00:00.000Z`);
 
-  const schedules = await prisma.workSchedule.findMany({
+  const userPublishedReports = await prisma.generalReport.findMany({
+    where: {
+      reportedById: session.userId,
+      status: "published",
+      workSchedule: {
+        agencyId: session.activeAgencyId,
+        workDate: {
+          gte: earliestDate,
+          lte: todayDate,
+        },
+      },
+    },
+    select: {
+      workSchedule: {
+        select: {
+          workDate: true,
+        },
+      },
+    },
+  });
+
+  const publishedDates = new Set(
+    userPublishedReports.map(r => r.workSchedule.workDate.toISOString().slice(0, 10))
+  );
+
+  const rawSchedules = await prisma.workSchedule.findMany({
     where: {
       agencyId: session.activeAgencyId,
       workDate: {
         gte: earliestDate,
         lte: todayDate,
       },
-
-      OR: [{ generalReport: null }, { generalReport: { status: "draft" } }],
     },
     orderBy: [{ workDate: "desc" }],
     select: {
@@ -74,13 +97,21 @@ export default async function NewReportPage({
           },
         },
       },
-      generalReport: {
+      generalReports: {
+        where: {
+          reportedById: session.userId,
+        },
         select: {
           id: true,
           status: true,
         },
       },
     },
+  });
+
+  const schedules = rawSchedules.filter(schedule => {
+    const dateIso = schedule.workDate.toISOString().slice(0, 10);
+    return !publishedDates.has(dateIso);
   });
 
   if (schedules.length === 0) {
@@ -113,7 +144,7 @@ export default async function NewReportPage({
 
   const initialReportIdBySchedule = Object.fromEntries(
     schedules
-      .map(schedule => [schedule.id, schedule.generalReport?.id ?? ""])
+      .map(schedule => [schedule.id, schedule.generalReports[0]?.id ?? ""])
       .filter(([, reportId]) => reportId)
   ) as Record<string, string>;
 

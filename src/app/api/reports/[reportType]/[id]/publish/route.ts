@@ -125,6 +125,7 @@ export async function POST(_: Request, { params }: PublishParams) {
               workScheduleId: report.workScheduleId,
               criterionId: setting.criterionId,
               evaluatedUserId,
+              evaluatingLeaderId: session.userId,
             },
             select: {
               id: true,

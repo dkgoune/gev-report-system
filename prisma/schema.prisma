@@ -287,7 +287,7 @@ model WorkSchedule {
   createdBy            User                              @relation(fields: [createdById], references: [id])
   assignments          WorkScheduleAssignment[]
   incidentRequirements WorkScheduleIncidentRequirement[]
-  generalReport        GeneralReport?
+  generalReports       GeneralReport[]
   evaluations          PersonnelEvaluation[]
   incidentEntries      GeneralReportIncidentEntry[]
 
@@ -423,7 +423,7 @@ model WorkScheduleIncidentRequirement {
 
 model GeneralReport {
   id             String              @id @default(cuid())
-  workScheduleId String              @unique
+  workScheduleId String
   reportedById   String
   readById       String?
   isRead         Boolean             @default(false)
