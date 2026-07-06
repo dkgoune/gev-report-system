@@ -158,7 +158,7 @@ export default async function EvaluationsPage({
     },
   });
 
-  const canCancel = hasPermission(session, "evaluation_create");
+  const canCancel = hasPermission(session, "evaluation_cancel");
 
   return (
     <EvaluationsList

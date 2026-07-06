@@ -8,9 +8,10 @@ import type { WorkPostFormState, WorkPostItem } from "./types";
 
 type WorkPostsManagerProps = {
   initialWorkPosts: WorkPostItem[];
+  services: Array<{ id: string; name: string }>;
 };
 
-export function WorkPostsManager({ initialWorkPosts }: WorkPostsManagerProps) {
+export function WorkPostsManager({ initialWorkPosts, services }: WorkPostsManagerProps) {
   const [workPosts, setWorkPosts] = useState<WorkPostItem[]>(initialWorkPosts);
   const [search, setSearch] = useState("");
   const [formState, setFormState] = useState<WorkPostFormState>(
@@ -74,6 +75,7 @@ export function WorkPostsManager({ initialWorkPosts }: WorkPostsManagerProps) {
       description: workPost.description || "",
       isActive: workPost.isActive,
       order: workPost.order,
+      serviceId: workPost.serviceId || "",
     });
   }
 
@@ -228,6 +230,22 @@ export function WorkPostsManager({ initialWorkPosts }: WorkPostsManagerProps) {
             />
           </label>
 
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-slate-700">Service associé</span>
+            <select
+              value={formState.serviceId}
+              onChange={event => onChange("serviceId", event.target.value)}
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="">Aucun service (poste global)</option>
+              {services.map(service => (
+                <option key={service.id} value={service.id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="md:col-span-2">
             <Button type="submit" disabled={submitting}>
               {submitting ? "Creation..." : "Ajouter le poste"}
@@ -315,6 +333,26 @@ export function WorkPostsManager({ initialWorkPosts }: WorkPostsManagerProps) {
                           className="w-full border border-slate-300 bg-white px-3 py-2"
                         />
                       </label>
+
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium text-slate-700">
+                          Service associé
+                        </span>
+                        <select
+                          value={editFormState.serviceId}
+                          onChange={event =>
+                            onEditChange("serviceId", event.target.value)
+                          }
+                          className="w-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-805"
+                        >
+                          <option value="">Aucun service (poste global)</option>
+                          {services.map(service => (
+                            <option key={service.id} value={service.id}>
+                              {service.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -349,6 +387,17 @@ export function WorkPostsManager({ initialWorkPosts }: WorkPostsManagerProps) {
                       <p className="text-sm text-slate-600">
                         {workPost.description || "Aucune description"}
                       </p>
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        {workPost.service ? (
+                          <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                            Service : {workPost.service.name}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                            Poste global
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">

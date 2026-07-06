@@ -23,14 +23,7 @@ export default async function SignatureDetailPage({
     redirect("/auth/login");
   }
 
-  if (
-    !hasPermission(
-      session,
-      "signature_read",
-      "signature_create",
-      "signature_update"
-    )
-  ) {
+  if (!hasPermission(session, "signature_update")) {
     redirect("/");
   }
 

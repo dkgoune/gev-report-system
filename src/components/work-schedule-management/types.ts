@@ -48,6 +48,7 @@ export type WorkSchedulePostOption = {
   id: string;
   name: string;
   code: string;
+  serviceId?: string | null;
 };
 
 export type WorkScheduleFormState = {

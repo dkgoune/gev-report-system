@@ -39,6 +39,7 @@ export async function PATCH(request: Request, { params }: Params) {
       description: string | null;
       isActive: boolean;
       order: number;
+      serviceId?: string | null;
     }>;
 
     const nextName =
@@ -77,6 +78,23 @@ export async function PATCH(request: Request, { params }: Params) {
       );
     }
 
+    if (body.serviceId) {
+      const service = await prisma.serviceDefinition.findFirst({
+        where: {
+          id: body.serviceId,
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!service) {
+        return NextResponse.json(
+          { error: "Service associé invalide ou inactif." },
+          { status: 400 }
+        );
+      }
+    }
+
     await prisma.workPost.update({
       where: { id },
       data: {
@@ -89,6 +107,7 @@ export async function PATCH(request: Request, { params }: Params) {
           ? { isActive: body.isActive }
           : {}),
         ...(typeof body.order === "number" ? { order: body.order } : {}),
+        ...(body.serviceId !== undefined ? { serviceId: body.serviceId || null } : {}),
       },
     });
 

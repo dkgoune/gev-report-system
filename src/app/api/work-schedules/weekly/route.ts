@@ -274,12 +274,14 @@ export async function POST(request: Request) {
         },
         select: {
           id: true,
+          serviceId: true,
         },
       }),
     ]);
 
     const validUserSet = new Set(validMemberships.map(item => item.userId));
     const validPostSet = new Set(validPosts.map(item => item.id));
+    const postServiceMap = new Map(validPosts.map(item => [item.id, item.serviceId]));
 
     const invalidUserId = userIds.find(userId => !validUserSet.has(userId));
     if (invalidUserId) {
@@ -291,10 +293,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const invalidPostId = postIds.find(postId => !validPostSet.has(postId));
+    const invalidPostId = postIds.find(postId => {
+      if (!validPostSet.has(postId)) {
+        return true;
+      }
+      const postServiceId = postServiceMap.get(postId);
+      if (postServiceId && postServiceId !== serviceId) {
+        return true;
+      }
+      return false;
+    });
+
     if (invalidPostId) {
       return NextResponse.json(
-        { error: "Un poste selectionne est invalide pour l'agence active." },
+        { error: "Un poste selectionne est invalide ou incompatible avec ce service." },
         { status: 400 }
       );
     }

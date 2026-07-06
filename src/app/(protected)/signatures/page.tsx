@@ -29,6 +29,7 @@ export default async function SignaturesPage({
   }
 
   const payload = await listSignatureLogs(session, await searchParams);
+  const canUpdate = hasPermission(session, "signature_update");
 
   return (
     <SignaturesList
@@ -38,6 +39,7 @@ export default async function SignaturesPage({
       summary={payload.summary}
       totalItems={payload.pagination.totalItems}
       totalPages={payload.pagination.totalPages}
+      canUpdate={canUpdate}
     />
   );
 }

@@ -92,6 +92,7 @@ export default async function WorkScheduleDetailPage({
         id: true,
         name: true,
         code: true,
+        serviceId: true,
       },
     }),
   ]);

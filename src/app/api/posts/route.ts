@@ -40,6 +40,13 @@ export async function GET() {
       description: true,
       isActive: true,
       order: true,
+      serviceId: true,
+      service: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       createdAt: true,
       updatedAt: true,
     },
@@ -68,17 +75,36 @@ export async function POST(request: Request) {
       description: string;
       isActive: boolean;
       order: number;
+      serviceId?: string | null;
     }>;
 
     const name = body.name?.trim();
     const generatedCode = normalizeCode(body.code || body.name || "");
     const description = body.description?.trim() || null;
+    const serviceId = body.serviceId || null;
 
     if (!name || !generatedCode) {
       return NextResponse.json(
         { error: "Le nom et le code du poste sont obligatoires." },
         { status: 400 }
       );
+    }
+
+    if (serviceId) {
+      const service = await prisma.serviceDefinition.findFirst({
+        where: {
+          id: serviceId,
+          agencyId: session.activeAgencyId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!service) {
+        return NextResponse.json(
+          { error: "Service associé invalide ou inactif." },
+          { status: 400 }
+        );
+      }
     }
 
     const post = await prisma.workPost.create({
@@ -89,6 +115,7 @@ export async function POST(request: Request) {
         description,
         isActive: body.isActive ?? true,
         order: body.order ?? 0,
+        serviceId,
         createdById: session.userId,
       },
       select: {
@@ -98,6 +125,13 @@ export async function POST(request: Request) {
         description: true,
         isActive: true,
         order: true,
+        serviceId: true,
+        service: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         createdAt: true,
         updatedAt: true,
       },

@@ -67,6 +67,7 @@ export default async function WeeklyViewPage({
         id: true,
         name: true,
         code: true,
+        serviceId: true,
       },
     }),
   ]);

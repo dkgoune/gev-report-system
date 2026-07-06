@@ -3,6 +3,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import type { UserPermission } from "@/generated/prisma/enums";
 import { allPermissions, hasPermission } from "@/lib/permissions";
 import type { SessionPayload } from "@/lib/session";
+import { ProfileWidget } from "./profile-widget";
 
 const PERMISSION_GROUPS: {
   key: string;
@@ -122,8 +123,14 @@ function getPermissionGroup(permission: UserPermission): string {
 
 export default function UserLandingPageComponent({
   session,
+  user,
 }: {
   session: SessionPayload;
+  user: {
+    fullName: string;
+    username: string;
+    phone: string | null;
+  };
 }) {
   const sortedPermissions = [
     ...(session.systemRole == "super_admin"
@@ -168,7 +175,7 @@ export default function UserLandingPageComponent({
         <div className="grid gap-6 p-5 md:grid-cols-[1.6fr_1fr] md:p-7">
           <div className="space-y-3">
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Bonjour {session.username}
+              Bonjour {user.fullName}
             </h1>
             <p className="max-w-2xl text-sm text-slate-100/90 md:text-base">
               Cet espace est accessible pour tous les utilisateurs authentifiés.
@@ -179,79 +186,91 @@ export default function UserLandingPageComponent({
         </div>
       </section>
 
-      {availableActions.length > 0 ? (
-        <section className="space-y-4 border border-slate-200 bg-white p-4 md:p-5">
-          <div className="space-y-1">
-            <h2 className="text-xl font-bold text-slate-900">Accès rapides</h2>
-            <p className="text-sm text-slate-600">
-              Raccourcis disponibles selon votre profil d'autorisation.
-            </p>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {availableActions.map(action => (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className="group border border-slate-200 bg-slate-50 p-4 transition hover:border-teal-300 hover:bg-teal-50/60"
-                >
-                  <p className="inline-flex items-center gap-2 text-base font-semibold text-slate-900">
-                    {action.title}
-                    <ArrowRight className="size-4 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-teal-700" />
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    {action.description}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </div>{" "}
-        </section>
-      ) : undefined}
-
-      <section className="space-y-4 border border-slate-200 bg-white p-4 md:p-5">
-        <div className="space-y-1">
-          <h2 className="inline-flex items-center gap-2 text-xl font-bold text-slate-900">
-            <ShieldCheck className="size-5 text-teal-700" />
-            Vos permissions
-          </h2>
-          <p className="text-sm text-slate-600">
-            Liste détaillée des permissions accordées à votre session.
-          </p>
-        </div>
-
-        {sortedPermissions.length > 0 ? (
-          <div className="space-y-4">
-            {visibleGroups.map(group => (
-              <article
-                key={group.key}
-                className="border border-slate-200 bg-slate-50 p-4"
-              >
-                <div className="mb-3 space-y-1">
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {group.title}
-                  </h3>
-                  <p className="text-xs text-slate-600">{group.description}</p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {(groupedPermissions.get(group.key) ?? []).map(permission => (
-                    <span
-                      key={permission}
-                      className="inline-flex items-center border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700"
-                      title={permission}
+      <div className="grid gap-6 lg:grid-cols-[1.8fr_1.2fr]">
+        <div className="space-y-6">
+          {availableActions.length > 0 ? (
+            <section className="space-y-4 border border-slate-200 bg-white p-4 md:p-5">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-slate-900">Accès rapides</h2>
+                <p className="text-sm text-slate-600">
+                  Raccourcis disponibles selon votre profil d'autorisation.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {availableActions.map(action => (
+                    <Link
+                      key={action.href}
+                      href={action.href}
+                      className="group border border-slate-200 bg-slate-50 p-4 transition hover:border-teal-300 hover:bg-teal-50/60"
                     >
-                      {getPermissionLabel(permission)}
-                    </span>
+                      <p className="inline-flex items-center gap-2 text-base font-semibold text-slate-900">
+                        {action.title}
+                        <ArrowRight className="size-4 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-teal-700" />
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {action.description}
+                      </p>
+                    </Link>
                   ))}
                 </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="border border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            Aucune permission active n'est présente dans la session actuelle.
-          </div>
-        )}
-      </section>
+              </div>
+            </section>
+          ) : undefined}
+
+          <section className="space-y-4 border border-slate-200 bg-white p-4 md:p-5">
+            <div className="space-y-1">
+              <h2 className="inline-flex items-center gap-2 text-xl font-bold text-slate-900">
+                <ShieldCheck className="size-5 text-teal-700" />
+                Vos permissions
+              </h2>
+              <p className="text-sm text-slate-600">
+                Liste détaillée des permissions accordées à votre session.
+              </p>
+            </div>
+
+            {sortedPermissions.length > 0 ? (
+              <div className="space-y-4">
+                {visibleGroups.map(group => (
+                  <article
+                    key={group.key}
+                    className="border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="mb-3 space-y-1">
+                      <h3 className="text-base font-semibold text-slate-900">
+                        {group.title}
+                      </h3>
+                      <p className="text-xs text-slate-600">{group.description}</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {(groupedPermissions.get(group.key) ?? []).map(permission => (
+                        <span
+                          key={permission}
+                          className="inline-flex items-center border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700"
+                          title={permission}
+                        >
+                          {getPermissionLabel(permission)}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="border border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                Aucune permission active n'est présente dans la session actuelle.
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="space-y-6">
+          <ProfileWidget
+            initialUser={user}
+            systemRole={session.systemRole}
+            isRoot={session.username.toLowerCase() === (process.env.ROOT_USERNAME || "root").toLowerCase()}
+          />
+        </div>
+      </div>
     </div>
   );
 }

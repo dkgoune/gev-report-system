@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useRef } from "react";
+import { useReactToPrint } from "react-to-print";
+import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -30,6 +35,7 @@ type SignaturesListProps = {
   };
   totalItems: number;
   totalPages: number;
+  canUpdate: boolean;
 };
 
 export function SignaturesList({
@@ -39,7 +45,14 @@ export function SignaturesList({
   summary,
   totalItems,
   totalPages,
+  canUpdate,
 }: SignaturesListProps) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const onPrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `signatures-${filters.startDate || "all"}-to-${filters.endDate || "all"}`,
+  });
+
   const startRow =
     totalItems === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
   const endRow = Math.min(filters.page * filters.pageSize, totalItems);
@@ -152,6 +165,21 @@ export function SignaturesList({
       </div>
 
       <div className="overflow-hidden border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between bg-white">
+          <h3 className="text-base font-semibold text-slate-900">
+            Liste des signatures
+          </h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void onPrint()}
+            disabled={signatures.length === 0}
+          >
+            <Printer className="mr-1.5 size-3.5" />
+            Imprimer la liste
+          </Button>
+        </div>
         <Table className="min-w-full divide-y divide-slate-200 text-sm">
           <TableHeader className="bg-slate-50 text-left text-slate-700 font-semibold uppercase tracking-wider text-xs">
             <TableRow>
@@ -192,12 +220,14 @@ export function SignaturesList({
                   {formatDateTime(signature.createdAt)}
                 </TableCell>
                 <TableCell className="px-6 py-4 text-right whitespace-nowrap">
-                  <Link
-                    href={`/signatures/${signature.id}`}
-                    className="text-sm font-semibold text-teal-600 hover:text-teal-700 underline-offset-4 hover:underline"
-                  >
-                    Modifier
-                  </Link>
+                  {canUpdate ? (
+                    <Link
+                      href={`/signatures/${signature.id}`}
+                      className="text-sm font-semibold text-teal-600 hover:text-teal-700 underline-offset-4 hover:underline"
+                    >
+                      Modifier
+                    </Link>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}
@@ -234,6 +264,51 @@ export function SignaturesList({
               </Button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Hidden printable copy of the signatures list */}
+      <div className="hidden">
+        <div ref={printRef} className="p-8 bg-white text-slate-900 space-y-6">
+          <header className="border-b border-slate-200 pb-4">
+            <h1 className="text-2xl font-extrabold uppercase tracking-wider text-slate-800">
+              Signatures de bordereaux
+            </h1>
+            <div className="text-xs text-slate-600 mt-2 space-y-1">
+              {(filters.startDate || filters.endDate) ? (
+                <p>
+                  Période: {filters.startDate ? `du ${formatDateTime(filters.startDate).split(" à ")[0]}` : ""} {filters.endDate ? `au ${formatDateTime(filters.endDate).split(" à ")[0]}` : ""}
+                </p>
+              ) : null}
+              {filters.search ? <p>Recherche: "{filters.search}"</p> : null}
+              {filters.userId && signers.find(s => s.id === filters.userId) ? (
+                <p>Signataire: {signers.find(s => s.id === filters.userId)?.fullName}</p>
+              ) : null}
+            </div>
+          </header>
+          <table className="w-full border-collapse border border-slate-300 text-xs text-left">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-300 font-semibold text-slate-800">
+                <th className="border-r border-slate-300 p-2">Signataire</th>
+                <th className="border-r border-slate-300 p-2 text-center">Nombre de signatures</th>
+                <th className="border-r border-slate-300 p-2">Date et heure de signature</th>
+                <th className="p-2">Date de saisie</th>
+              </tr>
+            </thead>
+            <tbody>
+              {signatures.map(signature => (
+                <tr key={signature.id} className="border-b border-slate-200">
+                  <td className="border-r border-slate-200 p-2 font-semibold">
+                    {signature.user.fullName}
+                    <span className="block text-slate-400 font-mono text-[9px] mt-0.5">@{signature.user.username}</span>
+                  </td>
+                  <td className="border-r border-slate-200 p-2 text-center">{signature.signatureCount} signatures</td>
+                  <td className="border-r border-slate-200 p-2">{formatDateTime(signature.signedAt)}</td>
+                  <td className="p-2">{formatDateTime(signature.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

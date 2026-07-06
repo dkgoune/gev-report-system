@@ -6,4 +6,5 @@ export const defaultWorkPostFormState: WorkPostFormState = {
   description: "",
   isActive: true,
   order: 0,
+  serviceId: "",
 };

@@ -90,6 +90,12 @@ export function WorkScheduleDetailEditor({
     [schedule.workDate]
   );
 
+  const filteredPosts = useMemo(() => {
+    return posts.filter(
+      post => !post.serviceId || post.serviceId === schedule.service.id
+    );
+  }, [posts, schedule.service.id]);
+
   const assignmentLocked = pastLocked || schedule.status === "archived";
   const todayIso = new Date().toISOString().slice(0, 10);
   const isFutureSchedule = schedule.workDate.slice(0, 10) > todayIso;
@@ -394,7 +400,7 @@ export function WorkScheduleDetailEditor({
                     disabled={assignmentLocked}
                   >
                     <option value="">Selectionner</option>
-                    {posts.map(post => (
+                    {filteredPosts.map(post => (
                       <option key={post.id} value={post.id}>
                         {post.name}
                       </option>

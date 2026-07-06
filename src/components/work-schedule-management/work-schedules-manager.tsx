@@ -113,6 +113,15 @@ export function WorkSchedulesManager({
     );
   }, [schedules, selectedScheduleId]);
 
+  const filteredPostsForSelectedSchedule = useMemo(() => {
+    if (!selectedSchedule) {
+      return [];
+    }
+    return initialPosts.filter(
+      post => !post.serviceId || post.serviceId === selectedSchedule.service.id
+    );
+  }, [initialPosts, selectedSchedule]);
+
   useEffect(() => {
     function callback() {
       if (!selectedSchedule && schedules.length > 0) {
@@ -683,7 +692,7 @@ export function WorkSchedulesManager({
                             disabled={selectedSchedule.status === "archived"}
                           >
                             <option value="">Selectionner</option>
-                            {initialPosts.map(post => (
+                            {filteredPostsForSelectedSchedule.map(post => (
                               <option key={post.id} value={post.id}>
                                 {post.name} ({post.code})
                               </option>

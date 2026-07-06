@@ -90,6 +90,7 @@ export const allPermissions: { value: UserPermission; label: string }[] = [
   // Evaluations
   { value: "evaluation_create", label: "Créer une évaluation" },
   { value: "evaluation_read", label: "Consulter les évaluations" },
+  { value: "evaluation_cancel", label: "Annuler une évaluation" },
 
   // Signatures
   { value: "signature_create", label: "Créer une signature" },

@@ -9,7 +9,7 @@ export async function PATCH(
 ) {
   const session = await getServerSession();
 
-  if (!session || !hasPermission(session, "evaluation_create")) {
+  if (!session) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
 
@@ -20,6 +20,13 @@ export async function PATCH(
       isCancelled?: boolean;
       comment?: string;
     };
+
+    const isCancelling = body.isCancelled !== undefined;
+    const requiredPermission = isCancelling ? "evaluation_cancel" : "evaluation_create";
+
+    if (!hasPermission(session, requiredPermission)) {
+      return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
+    }
 
     const evaluation = await prisma.personnelEvaluation.findUnique({
       where: { id },

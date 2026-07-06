@@ -135,6 +135,7 @@ export async function PUT(request: Request, { params }: Params) {
         id: true,
         status: true,
         workDate: true,
+        serviceId: true,
       },
     });
 
@@ -184,22 +185,31 @@ export async function PUT(request: Request, { params }: Params) {
         },
         select: {
           id: true,
+          serviceId: true,
         },
       }),
     ]);
 
     const validUserSet = new Set(validMemberships.map(item => item.userId));
     const validPostSet = new Set(validPosts.map(item => item.id));
+    const postServiceMap = new Map(validPosts.map(item => [item.id, item.serviceId]));
 
-    const invalid = assignments.find(
-      item => !validUserSet.has(item.userId) || !validPostSet.has(item.postId)
-    );
+    const invalid = assignments.find(item => {
+      if (!validUserSet.has(item.userId) || !validPostSet.has(item.postId)) {
+        return true;
+      }
+      const postServiceId = postServiceMap.get(item.postId);
+      if (postServiceId && postServiceId !== schedule.serviceId) {
+        return true;
+      }
+      return false;
+    });
 
     if (invalid) {
       return NextResponse.json(
         {
           error:
-            "Chaque affectation doit contenir un utilisateur et un poste actifs de l'agence.",
+            "Chaque affectation doit contenir un utilisateur et un poste actifs et compatibles de l'agence.",
         },
         { status: 400 }
       );

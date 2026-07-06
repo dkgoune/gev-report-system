@@ -62,6 +62,7 @@ export default async function NewWorkSchedulePage({
         id: true,
         name: true,
         code: true,
+        serviceId: true,
       },
     }),
   ]);

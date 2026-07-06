@@ -151,6 +151,10 @@ const permissionGroups: PermissionGroup[] = [
         value: "evaluation_read",
         label: "Consulter l'historique des évaluations",
       },
+      {
+        value: "evaluation_cancel",
+        label: "Annuler une évaluation",
+      },
     ],
   },
   {

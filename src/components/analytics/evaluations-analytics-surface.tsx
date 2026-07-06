@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useReactToPrint } from "react-to-print";
 import {
   BarChart3,
@@ -13,6 +13,13 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { type EvaluationsAnalyticsSnapshot } from "@/lib/evaluations-analytics.types";
 import { buildRangeSearchParams } from "@/lib/analytics-range";
 import { AnalyticsRangeFilter } from "./analytics-range-filter";
@@ -112,6 +119,21 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
     contentRef: printRef,
     documentTitle: `scores-evaluations-${snapshot.range.from}-to-${snapshot.range.to}`,
   });
+
+  const [selectedGroup, setSelectedGroup] = useState<string>("ALL");
+
+  const uniqueGroups = useMemo(() => {
+    return Array.from(
+      new Set(snapshot.workerStats.map(w => w.groupName).filter(Boolean))
+    ).sort();
+  }, [snapshot.workerStats]);
+
+  const filteredWorkerStats = useMemo(() => {
+    if (selectedGroup === "ALL") {
+      return snapshot.workerStats;
+    }
+    return snapshot.workerStats.filter(w => w.groupName === selectedGroup);
+  }, [snapshot.workerStats, selectedGroup]);
 
   const groupBreakdown = snapshot.groupStats
     .slice(0, 8)
@@ -273,19 +295,34 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
         </div>
 
         <article className="overflow-hidden border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+          <div className="border-b border-slate-200 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg font-semibold text-slate-900">
               Scores par travailleur
             </h3>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void onPrint()}
-            >
-              <Printer className="mr-1.5 size-3.5" />
-              Imprimer la liste
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue placeholder="Filtrer par poste" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="ALL">Tous les postes</SelectItem>
+                  {uniqueGroups.map(group => (
+                    <SelectItem key={group} value={group}>
+                      {group}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void onPrint()}
+              >
+                <Printer className="mr-1.5 size-3.5" />
+                Imprimer la liste
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -309,7 +346,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {snapshot.workerStats.map(worker => (
+                {filteredWorkerStats.map(worker => (
                   <tr key={worker.userId}>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="font-medium text-slate-900">
@@ -344,6 +381,7 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
               </h1>
               <p className="text-sm text-slate-600 mt-1">
                 Période: {snapshot.range.description}
+                {selectedGroup !== "ALL" && ` | Poste: ${selectedGroup}`}
               </p>
             </header>
             <table className="w-full border-collapse border border-slate-300 text-xs text-left">
@@ -357,12 +395,20 @@ export function EvaluationsAnalyticsSurface({ snapshot }: SurfaceProps) {
                 </tr>
               </thead>
               <tbody>
-                {snapshot.workerStats.map(worker => (
+                {filteredWorkerStats.map(worker => (
                   <tr key={worker.userId} className="border-b border-slate-200">
-                    <td className="border-r border-slate-200 p-2 font-semibold">{worker.fullName}</td>
-                    <td className="border-r border-slate-200 p-2">{worker.groupName}</td>
-                    <td className="border-r border-slate-200 p-2">{formatInteger(worker.evaluationCount)}</td>
-                    <td className="border-r border-slate-200 p-2">{formatSigned(worker.totalScore)}</td>
+                    <td className="border-r border-slate-200 p-2 font-semibold">
+                      {worker.fullName}
+                    </td>
+                    <td className="border-r border-slate-200 p-2">
+                      {worker.groupName}
+                    </td>
+                    <td className="border-r border-slate-200 p-2">
+                      {formatInteger(worker.evaluationCount)}
+                    </td>
+                    <td className="border-r border-slate-200 p-2">
+                      {formatSigned(worker.totalScore)}
+                    </td>
                     <td className="p-2">{formatSigned(worker.averageScore)}</td>
                   </tr>
                 ))}

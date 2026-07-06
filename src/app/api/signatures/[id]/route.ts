@@ -5,6 +5,7 @@ import {
   updateSignatureLog,
 } from "@/lib/signature-logs";
 import { getServerSession } from "@/lib/session";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(
   _request: Request,
@@ -53,8 +54,8 @@ export async function PATCH(
 ) {
   const session = await getServerSession();
 
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  if (!session || !hasPermission(session, "signature_update")) {
+    return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -99,8 +100,8 @@ export async function DELETE(
 ) {
   const session = await getServerSession();
 
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  if (!session || !hasPermission(session, "signature_update")) {
+    return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   }
 
   const { id } = await context.params;

@@ -23,22 +23,42 @@ export default async function PostsPage() {
     redirect("/");
   }
 
-  const posts = await prisma.workPost.findMany({
-    where: {
-      agencyId: session.activeAgencyId,
-    },
-    orderBy: [{ isActive: "desc" }, { order: "desc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      code: true,
-      description: true,
-      isActive: true,
-      order: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+  const [posts, services] = await Promise.all([
+    prisma.workPost.findMany({
+      where: {
+        agencyId: session.activeAgencyId,
+      },
+      orderBy: [{ isActive: "desc" }, { order: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        description: true,
+        isActive: true,
+        order: true,
+        serviceId: true,
+        service: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.serviceDefinition.findMany({
+      where: {
+        agencyId: session.activeAgencyId,
+        isActive: true,
+      },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+      },
+    }),
+  ]);
 
   return (
     <WorkPostsManager
@@ -47,6 +67,7 @@ export default async function PostsPage() {
         createdAt: post.createdAt.toISOString(),
         updatedAt: post.updatedAt.toISOString(),
       }))}
+      services={services}
     />
   );
 }

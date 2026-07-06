@@ -5,6 +5,11 @@ export type WorkPostItem = {
   description: string | null;
   isActive: boolean;
   order: number;
+  serviceId: string | null;
+  service?: {
+    id: string;
+    name: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -15,4 +20,5 @@ export type WorkPostFormState = {
   description: string;
   isActive: boolean;
   order: number;
+  serviceId: string;
 };

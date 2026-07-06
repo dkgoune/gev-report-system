@@ -102,6 +102,7 @@ enum UserPermission {
   // Evaluations
   evaluation_create
   evaluation_read
+  evaluation_cancel
 
   // Signatures
   signature_create
@@ -236,6 +237,7 @@ model ServiceDefinition {
   createdBy        User                     @relation(fields: [createdById], references: [id])
   workSchedules    WorkSchedule[]
   incidentBindings ServiceIncidentBinding[]
+  workPosts        WorkPost[]
 
   @@unique([agencyId, code])
   @@index([agencyId])
@@ -251,12 +253,14 @@ model WorkPost {
   description String?
   isActive    Boolean  @default(true)
   order       Int      @default(0)
+  serviceId   String?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
   agency              Agency                   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  service             ServiceDefinition?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   createdBy           User                     @relation(fields: [createdById], references: [id])
   scheduleAssignments WorkScheduleAssignment[]
   allowedTemplates    IncidentTemplate[]       @relation("IncidentTemplateToWorkPost")
@@ -264,6 +268,7 @@ model WorkPost {
   @@unique([agencyId, code])
   @@index([agencyId])
   @@index([createdById])
+  @@index([serviceId])
   @@map("posts")
 }
 

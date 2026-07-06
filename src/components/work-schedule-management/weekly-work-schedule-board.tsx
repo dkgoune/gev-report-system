@@ -226,6 +226,16 @@ export function WeeklyWorkScheduleBoard({
     }));
   }, [users]);
 
+  const visiblePosts = useMemo(() => {
+    return posts.filter(
+      post => !post.serviceId || post.serviceId === serviceId
+    );
+  }, [posts, serviceId]);
+
+  const visiblePostIds = useMemo(() => {
+    return new Set(visiblePosts.map(p => p.id));
+  }, [visiblePosts]);
+
   //   Print week schedule
   const onPrint = useReactToPrint({
     contentRef: printRef,
@@ -370,7 +380,7 @@ export function WeeklyWorkScheduleBoard({
       const sourceDayMap = current[normalizedCopyFromDay] || {};
       const duplicatedDayMap: Record<string, WeeklyMatrixPerson[]> = {};
 
-      for (const post of posts) {
+      for (const post of visiblePosts) {
         duplicatedDayMap[post.id] = (sourceDayMap[post.id] || []).map(
           person => ({
             ...person,
@@ -463,13 +473,17 @@ export function WeeklyWorkScheduleBoard({
     for (const day of weekDays) {
       const dayMap = matrix[day.dateKey] || {};
       assignmentsByDate[day.dateKey] = Object.entries(dayMap).flatMap(
-        ([postId, people]) =>
-          people.map(person => ({
+        ([postId, people]) => {
+          if (!visiblePostIds.has(postId)) {
+            return [];
+          }
+          return people.map(person => ({
             userId: person.userId,
             postId,
             isLeader: person.isLeader,
             isSubleader: person.isSubleader,
-          }))
+          }));
+        }
       );
     }
 
@@ -712,7 +726,7 @@ export function WeeklyWorkScheduleBoard({
           </thead>
 
           <tbody>
-            {posts.map(post => (
+            {visiblePosts.map(post => (
               <tr key={post.id} className="align-top">
                 <td className="sticky left-0 z-10 min-w-56 border-r border-t border-slate-200 bg-white px-3 py-3">
                   <p className="font-semibold text-slate-900">{post.name}</p>
@@ -822,7 +836,7 @@ export function WeeklyWorkScheduleBoard({
             agencyName={agencyName}
             serviceName={selectedServiceName}
             weekDays={weekDays}
-            posts={posts}
+            posts={visiblePosts}
             matrix={matrix}
           />
         </div>
